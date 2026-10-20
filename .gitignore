@@ -1,0 +1,10 @@
+# Seguridad
+.env
+*.db
+
+# Python
+venv/
+__pycache__/
+
+# Node
+node_modules/
