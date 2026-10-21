@@ -1,88 +1,185 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from database import engine, Base, SessionLocal
 import models
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 import datetime
 
 Base.metadata.create_all(bind=engine)
-
 app = FastAPI(title="Pro Pyme API")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 def get_db():
     db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    try: yield db
+    finally: db.close()
 
+# --- MODELOS PYDANTIC ---
 class TransactionInput(BaseModel):
-    date: str
-    type: str # INGRESO o EGRESO
-    amount: float
-    description: str
-    category: Optional[str] = None
+    date: str; type: str; amount: float; description: str; category: Optional[str] = None
 
+class EmployeeInput(BaseModel):
+    rut: str; first_name: str; last_name: str; position: str
+    afp_code: str; health_system: str; health_plan_value: float
+    contract_type: str; base_salary: float
+
+class PayrollInput(BaseModel):
+    employee_id: int
+    period: str
+    gross_salary: float
+    bonuses: float = 0.0
+    overtime: float = 0.0
+
+# --- RUTAS DE TRANSACCIONES ---
 @app.get("/api/transactions")
 def get_transactions(db: Session = Depends(get_db)):
     return db.query(models.Transaction).order_by(models.Transaction.date.desc()).all()
 
 @app.post("/api/transactions")
 def create_transaction(data: TransactionInput, db: Session = Depends(get_db)):
-    if data.amount <= 0:
-        raise HTTPException(status_code=400, detail="El monto debe ser mayor a cero.")
-    if data.type not in ["INGRESO", "EGRESO"]:
-        raise HTTPException(status_code=400, detail="El tipo debe ser INGRESO o EGRESO.")
-
     nueva_tx = models.Transaction(
         date=datetime.datetime.fromisoformat(data.date.replace("Z", "+00:00")),
-        type=data.type,
-        amount=data.amount,
-        description=data.description,
-        category=data.category
+        type=data.type, amount=data.amount, description=data.description, category=data.category
     )
-    db.add(nueva_tx)
-    db.commit()
-    db.refresh(nueva_tx)
+    db.add(nueva_tx); db.commit(); db.refresh(nueva_tx)
     return nueva_tx
 
 @app.delete("/api/transactions/{tx_id}")
 def delete_transaction(tx_id: int, db: Session = Depends(get_db)):
     tx = db.query(models.Transaction).filter(models.Transaction.id == tx_id).first()
-    if not tx:
-        raise HTTPException(status_code=404, detail="Transacción no encontrada")
-    db.delete(tx)
-    db.commit()
+    if not tx: raise HTTPException(status_code=404, detail="No encontrada")
+    db.delete(tx); db.commit()
     return {"status": "success"}
 
-@app.get("/api/summary")
-def get_summary(db: Session = Depends(get_db)):
-    txs = db.query(models.Transaction).all()
-    
-    # Cálculo Pro Pyme (Flujo de Caja)
-    total_ingresos = sum(t.amount for t in txs if t.type == "INGRESO")
-    total_egresos = sum(t.amount for t in txs if t.type == "EGRESO")
-    
-    # Renta Líquida Imponible (RLI)
-    rli = total_ingresos - total_egresos
-    
-    # PPM (0.25% sobre ventas brutas)
-    ppm = total_ingresos * 0.0025
+# --- RUTAS DE EMPLEADOS ---
+@app.get("/api/employees")
+def get_employees(db: Session = Depends(get_db)):
+    return db.query(models.Employee).all()
 
+@app.post("/api/employees")
+def create_employee(data: EmployeeInput, db: Session = Depends(get_db)):
+    if db.query(models.Employee).filter(models.Employee.rut == data.rut).first():
+        raise HTTPException(status_code=400, detail="El RUT ya está registrado")
+    nuevo_emp = models.Employee(**data.dict())
+    db.add(nuevo_emp); db.commit(); db.refresh(nuevo_emp)
+    return nuevo_emp
+
+@app.put("/api/employees/{emp_id}")
+def update_employee(emp_id: int, data: EmployeeInput, db: Session = Depends(get_db)):
+    emp = db.query(models.Employee).filter(models.Employee.id == emp_id).first()
+    if not emp: raise HTTPException(status_code=404, detail="Empleado no encontrado")
+    for key, value in data.dict().items(): setattr(emp, key, value)
+    db.commit(); db.refresh(emp)
+    return emp
+
+@app.delete("/api/employees/{emp_id}")
+def delete_employee(emp_id: int, db: Session = Depends(get_db)):
+    emp = db.query(models.Employee).filter(models.Employee.id == emp_id).first()
+    if not emp: raise HTTPException(status_code=404, detail="Empleado no encontrado")
+    db.delete(emp); db.commit()
+    return {"status": "success"}
+
+# --- RUTAS DE LIQUIDACIONES (CON LÓGICA DE NEGOCIO) ---
+AFP_RATES = {"Habitat": 0.1127, "Cuprum": 0.1144, "Modelo": 0.1058, "Capital": 0.1144, "Provida": 0.1145, "PlanVital": 0.1116, "Uno": 0.1069}
+HONORARIOS_RETENTION = 0.1525 # 15.25% para 2026
+
+@app.get("/api/payroll")
+def get_payrolls(db: Session = Depends(get_db)):
+    payrolls = db.query(models.Payroll).order_by(models.Payroll.date.desc()).all()
+    result = []
+    for p in payrolls:
+        emp = db.query(models.Employee).filter(models.Employee.id == p.employee_id).first()
+        result.append({
+            "id": p.id, "employee_name": f"{emp.first_name} {emp.last_name}", "rut": emp.rut,
+            "period": p.period, "gross_salary": p.gross_salary, "net_salary": p.net_salary,
+            "afp_amount": p.afp_amount, "health_amount": p.health_amount, "unemployment_amount": p.unemployment_amount
+        })
+    return result
+
+@app.post("/api/payroll")
+def calculate_payroll(data: PayrollInput, db: Session = Depends(get_db)):
+    emp = db.query(models.Employee).filter(models.Employee.id == data.employee_id).first()
+    if not emp: raise HTTPException(status_code=404, detail="Empleado no encontrado")
+    
+    # Validar que no exista otra liquidación para el mismo empleado y periodo
+    existing = db.query(models.Payroll).filter(
+        models.Payroll.employee_id == data.employee_id,
+        models.Payroll.period == data.period
+    ).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Ya existe una liquidación para este trabajador en el periodo seleccionado.")
+    
+    # Calcular el Bruto Total (Sueldo Base + Bonos + Horas Extras)
+    bruto_total = data.gross_salary + data.bonuses + data.overtime
+    
+    # Lógica para Honorarios (Boleta)
+    if emp.contract_type == 'Honorarios':
+        if bruto_total < 220417: # Monto exento aproximado
+            retencion = 0.0
+        else:
+            retencion = bruto_total * HONORARIOS_RETENTION
+        net_salary = bruto_total - retencion
+        afp_amount = 0.0
+        health_amount = 0.0
+        unemployment_amount = 0.0
+    else:
+        # Lógica para Contrato de Trabajo
+        afp_rate = AFP_RATES.get(emp.afp_code, 0.1144)
+        afp_amount = bruto_total * afp_rate
+        
+        if emp.health_system == "Fonasa":
+            health_amount = bruto_total * 0.07
+        else:
+            health_amount = max(bruto_total * 0.07, emp.health_plan_value)
+        
+        unemployment_amount = bruto_total * 0.006 if emp.contract_type == "Indefinido" else 0
+        net_salary = bruto_total - afp_amount - health_amount - unemployment_amount
+    
+    # Guardar Liquidación
+    nueva_liq = models.Payroll(
+        employee_id=emp.id, period=data.period, gross_salary=bruto_total,
+        afp_amount=afp_amount, health_amount=health_amount,
+        unemployment_amount=unemployment_amount, net_salary=net_salary
+    )
+    db.add(nueva_liq)
+    
+    # REGISTRAR AUTOMÁTICAMENTE EL EGRESO EN FLUJO DE CAJA
+    new_tx = models.Transaction(
+        date=datetime.datetime.now(),
+        type="EGRESO",
+        amount=net_salary,
+        description=f"Pago de sueldo {emp.first_name} {emp.last_name} - Periodo {data.period}",
+        category="Sueldos"
+    )
+    db.add(new_tx)
+    
+    db.commit(); db.refresh(nueva_liq)
+    
     return {
-        "total_ingresos": total_ingresos,
-        "total_egresos": total_egresos,
-        "rli": rli,
-        "ppm": ppm,
-        "cantidad_movimientos": len(txs)
+        "id": nueva_liq.id, "employee_name": f"{emp.first_name} {emp.last_name}", "period": nueva_liq.period,
+        "gross_salary": bruto_total, "afp_amount": afp_amount, "health_amount": health_amount,
+        "unemployment_amount": unemployment_amount, "net_salary": net_salary
     }
+
+# --- EXPORTACIÓN PARA PREVIRED ---
+@app.get("/api/payroll/export-previred")
+def export_previred(period: str, db: Session = Depends(get_db)):
+    payrolls = db.query(models.Payroll).filter(models.Payroll.period == period).all()
+    if not payrolls:
+        raise HTTPException(status_code=404, detail="No hay liquidaciones para este periodo")
+    
+    lines = []
+    for p in payrolls:
+        emp = db.query(models.Employee).filter(models.Employee.id == p.employee_id).first()
+        # Formato simplificado de 105 campos (solo algunos campos clave para el MVP)
+        # RUT | DV | Apellidos | Nombres | Periodo | Renta Imponible | AFP | Salud | Cesantía
+        rut_clean = emp.rut.replace(".", "").replace("-", "")
+        dv = rut_clean[-1]
+        rut_body = rut_clean[:-1]
+        line = f"{rut_body}|{dv}|{emp.last_name}|{emp.first_name}|{p.period}|{int(p.gross_salary)}|{int(p.afp_amount)}|{int(p.health_amount)}|{int(p.unemployment_amount)}"
+        lines.append(line)
+    
+    content = "\n".join(lines)
+    return Response(content=content, media_type="text/plain", headers={"Content-Disposition": f"attachment; filename=Previred_{period}.txt"})
