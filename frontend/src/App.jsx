@@ -5,7 +5,7 @@ import 'jspdf-autotable'
 
 const API_URL = 'http://127.0.0.1:8001/api'
 
-// --- COMPONENTES SVG (Limpios y Monocromáticos) ---
+// --- COMPONENTES SVG ---
 const IconChart = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
 const IconUsers = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
 const IconPlus = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
@@ -106,6 +106,10 @@ function App() {
   const handleDeleteTx = async (id) => {
     if (!window.confirm("¿Eliminar este movimiento?")) return
     try { await fetch(`${API_URL}/transactions/${id}`, { method: 'DELETE' }); loadData() } catch (error) { alert("Error al eliminar") }
+  }
+
+  const handleEditTx = (tx) => {
+    alert("Próximamente: Edición de movimientos en el flujo de caja. (Requiere actualización del Backend)")
   }
 
   // --- EMPLEADOS ---
@@ -278,12 +282,17 @@ function App() {
                   {monthlyTransactions.length === 0 && <tr><td colSpan="6" style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>No hay movimientos en este periodo.</td></tr>}
                   {monthlyTransactions.map(tx => (
                     <tr key={tx.id}>
-                      <td>{formatDate(tx.date)}</td>
-                      <td><span className={`badge ${tx.type === 'INGRESO' ? 'ingreso' : 'egreso'}`}>{tx.type}</span></td>
-                      <td>{tx.description}</td>
-                      <td style={{ color: '#94a3b8' }}>{tx.category || '-'}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 'bold', color: tx.type === 'INGRESO' ? '#4ade80' : '#f87171' }}>{tx.type === 'INGRESO' ? '+' : '-'} {formatMoney(tx.amount)}</td>
-                      <td style={{ textAlign: 'center' }}><button className="btn-icon delete" onClick={() => handleDeleteTx(tx.id)}><IconTrash /></button></td>
+                      <td data-label="Fecha">{formatDate(tx.date)}</td>
+                      <td data-label="Tipo"><span className={`badge ${tx.type === 'INGRESO' ? 'ingreso' : 'egreso'}`}>{tx.type}</span></td>
+                      <td data-label="Descripción">{tx.description}</td>
+                      <td data-label="Categoría" style={{ color: '#94a3b8' }}>{tx.category || '-'}</td>
+                      <td data-label="Monto" style={{ fontWeight: 'bold', color: tx.type === 'INGRESO' ? '#4ade80' : '#f87171' }}>{tx.type === 'INGRESO' ? '+' : '-'} {formatMoney(tx.amount)}</td>
+                      <td data-label="Acción">
+                        <div className="actions-wrapper">
+                          <button className="btn-icon edit" onClick={() => handleEditTx(tx)}><IconEdit /></button>
+                          <button className="btn-icon delete" onClick={() => handleDeleteTx(tx.id)}><IconTrash /></button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -313,12 +322,12 @@ function App() {
                   {employees.length === 0 && <tr><td colSpan="6" style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>No hay trabajadores registrados.</td></tr>}
                   {employees.map(emp => (
                     <tr key={emp.id}>
-                      <td style={{ fontWeight: '500' }}>{formatRut(emp.rut)}</td>
-                      <td>{emp.first_name} {emp.last_name}</td>
-                      <td>{emp.position}</td>
-                      <td>{formatMoney(emp.base_salary)}</td>
-                      <td style={{ color: '#94a3b8', fontSize: '0.8rem' }}>{emp.afp_code} / {emp.health_system}</td>
-                      <td>
+                      <td data-label="RUT" style={{ fontWeight: '500' }}>{formatRut(emp.rut)}</td>
+                      <td data-label="Nombre">{emp.first_name} {emp.last_name}</td>
+                      <td data-label="Cargo">{emp.position}</td>
+                      <td data-label="Sueldo Base">{formatMoney(emp.base_salary)}</td>
+                      <td data-label="AFP / Salud" style={{ color: '#94a3b8', fontSize: '0.8rem' }}>{emp.afp_code} / {emp.health_system}</td>
+                      <td data-label="Acciones">
                         <div className="actions-wrapper">
                           <button className="btn-liquidar" onClick={() => openPayrollModal(emp)}><IconMoney /> Liquidar</button>
                           <button className="btn-icon edit" onClick={() => openEmpModal(emp)}><IconEdit /></button>
@@ -352,16 +361,16 @@ function App() {
                   {payrolls.length === 0 && <tr><td colSpan="8" style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>No hay liquidaciones emitidas.</td></tr>}
                   {payrolls.map(p => (
                     <tr key={p.id}>
-                      <td style={{ fontWeight: '500' }}>{p.period}</td>
-                      <td style={{ color: '#fff' }}>{p.employee_name}</td>
-                      <td>{formatMoney(p.gross_salary)}</td>
-                      <td className="deduction">-{formatMoney(p.afp_amount)}</td>
-                      <td className="deduction">-{formatMoney(p.health_amount)}</td>
-                      <td className="deduction">-{formatMoney(p.unemployment_amount)}</td>
-                      <td style={{ textAlign: 'center' }}>
+                      <td data-label="Periodo" style={{ fontWeight: '500' }}>{p.period}</td>
+                      <td data-label="Trabajador" style={{ color: '#fff' }}>{p.employee_name}</td>
+                      <td data-label="Sueldo Bruto">{formatMoney(p.gross_salary)}</td>
+                      <td data-label="AFP" className="deduction">-{formatMoney(p.afp_amount)}</td>
+                      <td data-label="Salud" className="deduction">-{formatMoney(p.health_amount)}</td>
+                      <td data-label="Cesantía" className="deduction">-{formatMoney(p.unemployment_amount)}</td>
+                      <td data-label="Sueldo Líquido">
                         <span className="net-salary-box">{formatMoney(p.net_salary)}</span>
                       </td>
-                      <td>
+                      <td data-label="Acciones">
                         <div className="actions-wrapper">
                           <button className="btn-action pdf" title="Descargar PDF" onClick={() => downloadPDF(p)}><IconFile /> PDF</button>
                           <button className="btn-action previred" title="Descargar para Previred" onClick={() => downloadPrevired(p)}><IconDownload /> Previred</button>
