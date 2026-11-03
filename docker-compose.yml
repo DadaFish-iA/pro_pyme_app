@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: propyme_backend
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./backend/pro_pyme.db:/app/pro_pyme.db
+
+  frontend:
+    build: ./frontend
+    container_name: propyme_frontend
+    restart: unless-stopped
+    ports:
+      - "5176:80"
+    depends_on:
+      - backend
