@@ -176,7 +176,6 @@ function App() {
     } catch (error) { alert("Error de conexión") }
   }
 
-  // NUEVA FUNCIÓN: Eliminar Liquidación
   const handleDeletePayroll = async (id) => {
     if (!window.confirm("¿Eliminar esta liquidación? También se borrará el egreso asociado en el flujo de caja.")) return
     try { 
@@ -316,7 +315,11 @@ function App() {
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '12px' }}>
               <h2 style={{ margin: 0, border: 'none', padding: 0 }}>Gestión de Personal</h2>
-              <button className="btn-submit" style={{ width: 'auto', marginTop: 0, padding: '0 20px', height: '40px' }} onClick={() => openEmpModal()}><IconPlus /> Nuevo Trabajador</button>
+              
+              {/* BOTÓN NUEVO TRABAJADOR (MÁS PEQUEÑO) */}
+              <button className="btn-submit" style={{ width: 'auto', marginTop: 0, padding: '0 15px', height: '32px', fontSize: '0.8rem' }} onClick={() => openEmpModal()}>
+                <IconPlus style={{ width: '14px', height: '14px' }} /> Nuevo Trabajador
+              </button>
             </div>
             
             <div className="table-responsive">

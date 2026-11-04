@@ -1,4 +1,4 @@
-/* App.css - Pro Pyme Premium (Botones Definitivos) */
+/* App.css - Pro Pyme Premium (Ajustes de Tabla y Botones) */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 * { box-sizing: border-box; }
@@ -42,55 +42,21 @@ body { margin: 0; background-color: #05070a; background-image: radial-gradient(c
 .form-group input:focus, .form-group select:focus { border-color: #48cae4; }
 .form-group input.error { border-color: #f87171; }
 
-/* =========================================
-   BOTONES DE TIPO (INGRESO/EGRESO) - TAMAÑO UNIFICADO
-   ========================================= */
+/* BOTONES DE TIPO (INGRESO/EGRESO) */
 .type-selector { display: flex; gap: 12px; margin-bottom: 20px; }
-.btn-type { 
-  flex: 1; 
-  min-height: 64px; /* Forzamos altura mínima */
-  padding: 0 15px;
-  border: 2px solid rgba(255,255,255,0.1); 
-  background: transparent; 
-  color: #94a3b8; 
-  border-radius: 8px; 
-  font-weight: 600; 
-  cursor: pointer; 
-  transition: all 0.3s; 
-  font-size: 1.05rem; 
-  display: flex; 
-  align-items: center; 
-  justify-content: center; 
-  gap: 8px; 
-}
+.btn-type { flex: 1; min-height: 64px; padding: 0 15px; border: 2px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s; font-size: 1.05rem; display: flex; align-items: center; justify-content: center; gap: 8px; }
 .btn-type svg { width: 20px; height: 20px; }
 .btn-type.active-ingreso { border-color: rgba(72, 202, 228, 0.6); background: rgba(72, 202, 228, 0.15); color: #48cae4; box-shadow: 0 0 10px rgba(72, 202, 228, 0.2); }
 .btn-type.active-egreso { border-color: rgba(248, 113, 113, 0.6); background: rgba(248, 113, 113, 0.15); color: #f87171; box-shadow: 0 0 10px rgba(248, 113, 113, 0.2); }
 
-.btn-submit { 
-  width: 100%; 
-  min-height: 64px; /* Misma altura que los type */
-  background: linear-gradient(90deg, #9d4edd, #c77dff); 
-  color: white; 
-  border: 1px solid rgba(157, 78, 221, 0.5); 
-  border-radius: 8px; 
-  font-size: 1.05rem; 
-  font-weight: 600; 
-  cursor: pointer; 
-  transition: all 0.2s; 
-  margin-top: 10px; 
-  box-shadow: 0 4px 15px rgba(157, 78, 221, 0.3); 
-  display: flex; 
-  align-items: center; 
-  justify-content: center; 
-  gap: 8px; 
-}
+.btn-submit { width: 100%; height: 54px; background: linear-gradient(90deg, #9d4edd, #c77dff); color: white; border: 1px solid rgba(157, 78, 221, 0.5); border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s; margin-top: 10px; box-shadow: 0 4px 15px rgba(157, 78, 221, 0.3); display: flex; align-items: center; justify-content: center; gap: 8px; }
 .btn-submit:hover { background: linear-gradient(90deg, #7b2cbf, #9d4edd); transform: translateY(-1px); }
 
+/* TABLAS ESCRITORIO */
 .table-responsive { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 th { text-align: left; padding: 12px; color: #64748b; font-size: 0.75rem; text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 500; letter-spacing: 0.5px; vertical-align: middle; }
-td { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.03); color: #cbd5e1; font-weight: 300; vertical-align: middle; }
+td { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.03); color: #cbd5e1; font-weight: 300; vertical-align: middle; white-space: nowrap; }
 
 .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
 .badge.ingreso { background: rgba(72, 202, 228, 0.15); color: #48cae4; border: 1px solid rgba(72, 202, 228, 0.3); }
@@ -100,22 +66,23 @@ td { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.03); color: #cbd
 .payroll-table .deduction { color: #f87171; font-size: 0.75rem; }
 .net-salary-box { background: rgba(74, 222, 128, 0.1); border: 1px solid rgba(74, 222, 128, 0.3); padding: 4px 10px; border-radius: 6px; color: #4ade80; font-weight: 700; font-size: 0.9rem; display: inline-block; }
 
-.actions-wrapper { display: flex; gap: 6px; justify-content: center; align-items: center; }
-.btn-action { border: none; border-radius: 6px; padding: 6px 10px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
-.btn-action svg { width: 14px; height: 14px; }
+/* BOTONES DE ACCIÓN (MÁS COMPACTOS) */
+.actions-wrapper { display: flex; gap: 4px; justify-content: center; align-items: center; flex-wrap: nowrap; }
+.btn-action { border: none; border-radius: 6px; padding: 6px 8px; font-size: 0.7rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 4px; }
+.btn-action svg { width: 12px; height: 12px; }
 .btn-action.pdf { background: rgba(248, 113, 113, 0.15); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.3); }
 .btn-action.pdf:hover { background: rgba(248, 113, 113, 0.3); }
 .btn-action.previred { background: rgba(72, 202, 228, 0.15); color: #48cae4; border: 1px solid rgba(72, 202, 228, 0.3); }
 .btn-action.previred:hover { background: rgba(72, 202, 228, 0.3); }
 
-.btn-icon { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #e2e8f0; width: 32px; height: 32px; border-radius: 6px; cursor: pointer; display: inline-flex; justify-content: center; align-items: center; transition: all 0.2s; padding: 0; }
-.btn-icon svg { width: 14px; height: 14px; }
+.btn-icon { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #e2e8f0; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; display: inline-flex; justify-content: center; align-items: center; transition: all 0.2s; padding: 0; }
+.btn-icon svg { width: 12px; height: 12px; }
 .btn-icon:hover { background: rgba(255,255,255,0.15); }
 .btn-icon.edit:hover { color: #48cae4; border-color: #48cae4; }
 .btn-icon.delete:hover { color: #f87171; border-color: #f87171; }
 
-.btn-liquidar { padding: 6px 12px; font-size: 0.75rem; border-radius: 6px; background: #48cae4; color: #000; border: none; font-weight: 600; cursor: pointer; height: 32px; display: flex; align-items: center; gap: 6px; }
-.btn-liquidar svg { width: 14px; height: 14px; }
+.btn-liquidar { padding: 6px 10px; font-size: 0.7rem; border-radius: 6px; background: #48cae4; color: #000; border: none; font-weight: 600; cursor: pointer; height: 28px; display: flex; align-items: center; gap: 4px; }
+.btn-liquidar svg { width: 12px; height: 12px; }
 .btn-liquidar:hover { background: #00b4d8; }
 
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(5px); display: flex; justify-content: center; align-items: center; z-index: 1000; }
@@ -142,24 +109,17 @@ td { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.03); color: #cbd
   .date-filter { flex-direction: column; width: 100%; gap: 10px; padding: 15px; }
   .date-filter select { width: 100%; height: 45px; }
   
-  /* Apilar botones de movimiento en móvil y quitar flex:1 para que no se compriman */
   .type-selector { flex-direction: column; gap: 12px; }
-  .btn-type { 
-    width: 100%; 
-    flex: none; 
-    min-height: 64px !important; 
-  }
+  .btn-type { width: 100%; flex: none; min-height: 64px !important; }
   
   .modal-content { width: 95%; padding: 20px; }
 
-  /* CONVERTIR TABLAS EN TARJETAS */
+  /* TABLAS COMO TARJETAS EN MÓVIL */
   .table-responsive table, .table-responsive thead, .table-responsive tbody, .table-responsive th, .table-responsive td, .table-responsive tr {
     display: block;
   }
   .table-responsive thead tr {
-    position: absolute;
-    top: -9999px;
-    left: -9999px;
+    position: absolute; top: -9999px; left: -9999px;
   }
   .table-responsive tr {
     margin-bottom: 15px;
@@ -174,7 +134,7 @@ td { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.03); color: #cbd
     position: relative;
     padding-left: 45%;
     text-align: right;
-    white-space: normal;
+    white-space: normal; /* Permitir saltos de línea en móvil */
   }
   .table-responsive td:last-child {
     border-bottom: none;
@@ -202,16 +162,6 @@ td { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.03); color: #cbd
     width: 100%;
   }
   
-  .btn-liquidar { 
-    width: auto; 
-    padding: 0 15px; 
-    height: 38px;
-    font-size: 0.8rem;
-  }
-  
-  .btn-action { 
-    width: auto; 
-    padding: 8px 12px; 
-    font-size: 0.8rem;
-  }
+  .btn-liquidar { width: auto; padding: 0 15px; height: 38px; font-size: 0.8rem; }
+  .btn-action { width: auto; padding: 8px 12px; font-size: 0.8rem; }
 }
