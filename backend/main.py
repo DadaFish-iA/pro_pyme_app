@@ -6,6 +6,7 @@ import models
 from pydantic import BaseModel
 from typing import Optional, List
 import datetime
+import calendar
 
 Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Pro Pyme API")
@@ -113,23 +114,13 @@ def calculate_payroll(data: PayrollInput, db: Session = Depends(get_db)):
     bruto_total = data.gross_salary + data.bonuses + data.overtime
     
     if emp.contract_type == 'Honorarios':
-        if bruto_total < 220417:
-            retencion = 0.0
-        else:
-            retencion = bruto_total * HONORARIOS_RETENTION
+        retencion = 0 if bruto_total < 220417 else bruto_total * HONORARIOS_RETENTION
         net_salary = bruto_total - retencion
-        afp_amount = 0.0
-        health_amount = 0.0
-        unemployment_amount = 0.0
+        afp_amount = 0.0; health_amount = 0.0; unemployment_amount = 0.0
     else:
         afp_rate = AFP_RATES.get(emp.afp_code, 0.1144)
         afp_amount = bruto_total * afp_rate
-        
-        if emp.health_system == "Fonasa":
-            health_amount = bruto_total * 0.07
-        else:
-            health_amount = max(bruto_total * 0.07, emp.health_plan_value)
-        
+        health_amount = bruto_total * 0.07 if emp.health_system == "Fonasa" else max(bruto_total * 0.07, emp.health_plan_value)
         unemployment_amount = bruto_total * 0.006 if emp.contract_type == "Indefinido" else 0
         net_salary = bruto_total - afp_amount - health_amount - unemployment_amount
     
@@ -140,22 +131,21 @@ def calculate_payroll(data: PayrollInput, db: Session = Depends(get_db)):
     )
     db.add(nueva_liq)
     
-    # --- CORRECCIÓN: REGISTRAR EGRESO CON LA FECHA DEL PERIODO ---
+    # CORRECCIÓN: CALCULAR EL ÚLTIMO DÍA DEL MES
     try:
-        # Convierte "2026-10" en una fecha válida "2026-10-01T12:00:00"
-        tx_date = datetime.datetime.fromisoformat(f"{data.period}-01T12:00:00")
+        year, month = map(int, data.period.split('-'))
+        last_day = calendar.monthrange(year, month)[1]
+        # Fecha a las 12:00 PM del último día del mes para evitar problemas de zona horaria
+        tx_date = datetime.datetime(year, month, last_day, 12, 0, 0)
     except ValueError:
         tx_date = datetime.datetime.now()
 
     new_tx = models.Transaction(
-        date=tx_date,
-        type="EGRESO",
-        amount=net_salary,
+        date=tx_date, type="EGRESO", amount=net_salary,
         description=f"Pago de sueldo {emp.first_name} {emp.last_name} - Periodo {data.period}",
         category="Sueldos"
     )
     db.add(new_tx)
-    
     db.commit(); db.refresh(nueva_liq)
     
     return {
@@ -164,21 +154,34 @@ def calculate_payroll(data: PayrollInput, db: Session = Depends(get_db)):
         "unemployment_amount": unemployment_amount, "net_salary": net_salary
     }
 
-# --- EXPORTACIÓN PARA PREVIRED ---
+# NUEVA RUTA: Eliminar Liquidación y su Transacción Asociada
+@app.delete("/api/payroll/{payroll_id}")
+def delete_payroll(payroll_id: int, db: Session = Depends(get_db)):
+    payroll = db.query(models.Payroll).filter(models.Payroll.id == payroll_id).first()
+    if not payroll: raise HTTPException(status_code=404, detail="Liquidación no encontrada")
+    
+    emp = db.query(models.Employee).filter(models.Employee.id == payroll.employee_id).first()
+    
+    # Buscar y eliminar la transacción asociada en el flujo de caja
+    if emp:
+        desc_match = f"Pago de sueldo {emp.first_name} {emp.last_name} - Periodo {payroll.period}"
+        tx = db.query(models.Transaction).filter(models.Transaction.description == desc_match).first()
+        if tx:
+            db.delete(tx)
+            
+    db.delete(payroll)
+    db.commit()
+    return {"status": "success"}
+
 @app.get("/api/payroll/export-previred")
 def export_previred(period: str, db: Session = Depends(get_db)):
     payrolls = db.query(models.Payroll).filter(models.Payroll.period == period).all()
-    if not payrolls:
-        raise HTTPException(status_code=404, detail="No hay liquidaciones para este periodo")
-    
+    if not payrolls: raise HTTPException(status_code=404, detail="No hay liquidaciones para este periodo")
     lines = []
     for p in payrolls:
         emp = db.query(models.Employee).filter(models.Employee.id == p.employee_id).first()
         rut_clean = emp.rut.replace(".", "").replace("-", "")
-        dv = rut_clean[-1]
-        rut_body = rut_clean[:-1]
-        line = f"{rut_body}|{dv}|{emp.last_name}|{emp.first_name}|{p.period}|{int(p.gross_salary)}|{int(p.afp_amount)}|{int(p.health_amount)}|{int(p.unemployment_amount)}"
+        line = f"{rut_clean[:-1]}|{rut_clean[-1]}|{emp.last_name}|{emp.first_name}|{p.period}|{int(p.gross_salary)}|{int(p.afp_amount)}|{int(p.health_amount)}|{int(p.unemployment_amount)}"
         lines.append(line)
-    
     content = "\n".join(lines)
     return Response(content=content, media_type="text/plain", headers={"Content-Disposition": f"attachment; filename=Previred_{period}.txt"})

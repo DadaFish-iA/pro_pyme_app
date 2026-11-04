@@ -50,13 +50,11 @@ const isValidRut = (rut) => {
 function App() {
   const [activeTab, setActiveTab] = useState('caja')
 
-  // --- FLUJO DE CAJA ---
   const [transactions, setTransactions] = useState([])
   const [selectedMonth, setSelectedMonth] = useState((new Date().getMonth() + 1).toString().padStart(2, '0'))
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString())
   const [form, setForm] = useState({ date: new Date().toISOString().split('T')[0], type: 'INGRESO', amount: '', description: '', category: '' })
 
-  // --- EMPLEADOS Y LIQUIDACIONES ---
   const [employees, setEmployees] = useState([])
   const [payrolls, setPayrolls] = useState([])
   const [isEmpModalOpen, setIsEmpModalOpen] = useState(false)
@@ -90,7 +88,6 @@ function App() {
 
   useEffect(() => { loadData() }, [])
 
-  // --- FLUJO DE CAJA ---
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.amount || parseFloat(form.amount) <= 0) return alert("Monto inválido.")
@@ -112,7 +109,6 @@ function App() {
     alert("Próximamente: Edición de movimientos en el flujo de caja.")
   }
 
-  // --- EMPLEADOS ---
   const handleSaveEmployee = async (e) => {
     e.preventDefault()
     if (!isValidRut(empForm.rut)) {
@@ -152,7 +148,6 @@ function App() {
     setIsEmpModalOpen(true)
   }
 
-  // --- LIQUIDACIONES ---
   const openPayrollModal = (emp) => {
     setSelectedEmp(emp)
     setPayrollForm({ period: `${new Date().getFullYear()}-${(new Date().getMonth() + 1).toString().padStart(2, '0')}`, gross_salary: emp.base_salary.toString(), bonuses: '0', overtime: '0' })
@@ -181,7 +176,15 @@ function App() {
     } catch (error) { alert("Error de conexión") }
   }
 
-  // --- DESCARGAS ---
+  // NUEVA FUNCIÓN: Eliminar Liquidación
+  const handleDeletePayroll = async (id) => {
+    if (!window.confirm("¿Eliminar esta liquidación? También se borrará el egreso asociado en el flujo de caja.")) return
+    try { 
+      const res = await fetch(`${API_URL}/payroll/${id}`, { method: 'DELETE' })
+      if (res.ok) loadData()
+    } catch (error) { alert("Error al eliminar") }
+  }
+
   const downloadPDF = (payroll) => {
     const doc = new jsPDF()
     doc.setFontSize(18); doc.text("Liquidación de Sueldo", 14, 20)
@@ -208,14 +211,12 @@ function App() {
     } catch (error) { alert("Error al descargar archivo para Previred") }
   }
 
-  // --- UTILIDADES ---
   const formatMoney = (val) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(val || 0)
   const formatDate = (isoString) => new Date(isoString).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })
   const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
   const yearsList = Array.from({ length: 16 }, (_, i) => 2020 + i)
   const currentMonthName = monthNames[parseInt(selectedMonth) - 1]
 
-  // --- CÁLCULOS FLUJO DE CAJA ---
   const filterString = `${selectedYear}-${selectedMonth}`
   const monthlyTransactions = transactions.filter(tx => tx.date.startsWith(filterString))
   const total_ingresos = monthlyTransactions.filter(t => t.type === 'INGRESO').reduce((acc, t) => acc + t.amount, 0)
@@ -223,14 +224,11 @@ function App() {
   const rli = total_ingresos - total_egresos
   const ppm = total_ingresos * 0.0025
 
-  // --- CÁLCULO ESTIMADO SUELDO LÍQUIDO (Para el Modal de Ficha) ---
   const estimatedGross = parseFloat(empForm.base_salary) || 0;
   const afpRates = { "Habitat": 0.1127, "Cuprum": 0.1144, "Modelo": 0.1058, "Capital": 0.1144, "Provida": 0.1145, "PlanVital": 0.1116, "Uno": 0.1069 };
   const afpRate = afpRates[empForm.afp_code] || 0.1144;
   const estimatedAfp = estimatedGross * afpRate;
-  const estimatedHealth = empForm.health_system === 'Fonasa' 
-    ? estimatedGross * 0.07 
-    : Math.max(estimatedGross * 0.07, parseFloat(empForm.health_plan_value) || 0);
+  const estimatedHealth = empForm.health_system === 'Fonasa' ? estimatedGross * 0.07 : Math.max(estimatedGross * 0.07, parseFloat(empForm.health_plan_value) || 0);
   const estimatedAfc = empForm.contract_type === 'Indefinido' ? estimatedGross * 0.006 : 0;
   const estimatedNet = estimatedGross - estimatedAfp - estimatedHealth - estimatedAfc;
 
@@ -246,7 +244,6 @@ function App() {
         <button className={`btn-main-tab ${activeTab === 'remuneraciones' ? 'active' : ''}`} onClick={() => setActiveTab('remuneraciones')}><IconUsers /> Remuneraciones</button>
       </div>
 
-      {/* FLUJO DE CAJA */}
       {activeTab === 'caja' && (
         <>
           <div className="date-filter-container">
@@ -314,7 +311,6 @@ function App() {
         </>
       )}
 
-      {/* REMUNERACIONES */}
       {activeTab === 'remuneraciones' && (
         <>
           <div className="card">
@@ -386,6 +382,7 @@ function App() {
                         <div className="actions-wrapper">
                           <button className="btn-action pdf" title="Descargar PDF" onClick={() => downloadPDF(p)}><IconFile /> PDF</button>
                           <button className="btn-action previred" title="Descargar para Previred" onClick={() => downloadPrevired(p)}><IconDownload /> Previred</button>
+                          <button className="btn-icon delete" title="Eliminar Liquidación" onClick={() => handleDeletePayroll(p.id)}><IconTrash /></button>
                         </div>
                       </td>
                     </tr>
@@ -397,7 +394,6 @@ function App() {
         </>
       )}
 
-      {/* MODAL FICHA EMPLEADO (CON ESTIMADOR DE SUELDO) */}
       {isEmpModalOpen && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -409,17 +405,7 @@ function App() {
               <div className="form-grid">
                 <div className="form-group">
                   <label>RUT</label>
-                  <input 
-                    type="text" 
-                    value={empForm.rut} 
-                    onChange={e => {
-                      setEmpForm({...empForm, rut: formatRut(e.target.value)});
-                      if (rutError) setRutError('');
-                    }} 
-                    className={rutError ? 'error' : ''}
-                    placeholder="Ej: 12.345.678-9" 
-                    required 
-                  />
+                  <input type="text" value={empForm.rut} onChange={e => { setEmpForm({...empForm, rut: formatRut(e.target.value)}); if (rutError) setRutError(''); }} className={rutError ? 'error' : ''} placeholder="Ej: 12.345.678-9" required />
                   {rutError && <span style={{ color: '#f87171', fontSize: '0.7rem', marginTop: '4px' }}>{rutError}</span>}
                 </div>
                 <div className="form-group"><label>Nombres</label><input type="text" value={empForm.first_name} onChange={e => setEmpForm({...empForm, first_name: e.target.value})} required /></div>
@@ -431,9 +417,7 @@ function App() {
                 <div className="form-group">
                   <label>Tipo de Contrato</label>
                   <select value={empForm.contract_type} onChange={e => setEmpForm({...empForm, contract_type: e.target.value})}>
-                    <option value="Indefinido">Indefinido</option>
-                    <option value="Plazo Fijo">Plazo Fijo</option>
-                    <option value="Honorarios">Honorarios (Boleta)</option>
+                    <option value="Indefinido">Indefinido</option><option value="Plazo Fijo">Plazo Fijo</option><option value="Honorarios">Honorarios (Boleta)</option>
                   </select>
                 </div>
               </div>
@@ -455,7 +439,6 @@ function App() {
                 )}
               </div>
 
-              {/* NUEVO BLOQUE DE ESTIMACIÓN DE SUELDO LÍQUIDO */}
               {estimatedGross > 0 && (
                 <div style={{ marginTop: '15px', padding: '15px', backgroundColor: 'rgba(72, 202, 228, 0.05)', border: '1px solid rgba(72, 202, 228, 0.2)', borderRadius: '8px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
@@ -474,7 +457,6 @@ function App() {
         </div>
       )}
 
-      {/* MODAL LIQUIDACIÓN */}
       {isPayrollModalOpen && selectedEmp && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '600px' }}>
