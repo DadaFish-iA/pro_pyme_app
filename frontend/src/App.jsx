@@ -3,7 +3,6 @@ import './App.css'
 import { jsPDF } from 'jspdf'
 import 'jspdf-autotable'
 
-// Usamos la ruta relativa /api para que Nginx haga el puente con el backend
 const API_URL = `/api`
 
 // --- COMPONENTES SVG ---
@@ -110,7 +109,7 @@ function App() {
   }
 
   const handleEditTx = (tx) => {
-    alert("Próximamente: Edición de movimientos en el flujo de caja. (Requiere actualización del Backend)")
+    alert("Próximamente: Edición de movimientos en el flujo de caja.")
   }
 
   // --- EMPLEADOS ---
@@ -175,7 +174,7 @@ function App() {
       })
       if (response.ok) {
         setIsPayrollModalOpen(false); loadData()
-        alert("Liquidación generada con éxito. Se ha registrado el egreso en el flujo de caja.")
+        alert("Liquidación generada con éxito.")
       } else {
         const err = await response.json(); alert(err.detail || "Error al generar")
       }
@@ -216,12 +215,24 @@ function App() {
   const yearsList = Array.from({ length: 16 }, (_, i) => 2020 + i)
   const currentMonthName = monthNames[parseInt(selectedMonth) - 1]
 
+  // --- CÁLCULOS FLUJO DE CAJA ---
   const filterString = `${selectedYear}-${selectedMonth}`
   const monthlyTransactions = transactions.filter(tx => tx.date.startsWith(filterString))
   const total_ingresos = monthlyTransactions.filter(t => t.type === 'INGRESO').reduce((acc, t) => acc + t.amount, 0)
   const total_egresos = monthlyTransactions.filter(t => t.type === 'EGRESO').reduce((acc, t) => acc + t.amount, 0)
   const rli = total_ingresos - total_egresos
   const ppm = total_ingresos * 0.0025
+
+  // --- CÁLCULO ESTIMADO SUELDO LÍQUIDO (Para el Modal de Ficha) ---
+  const estimatedGross = parseFloat(empForm.base_salary) || 0;
+  const afpRates = { "Habitat": 0.1127, "Cuprum": 0.1144, "Modelo": 0.1058, "Capital": 0.1144, "Provida": 0.1145, "PlanVital": 0.1116, "Uno": 0.1069 };
+  const afpRate = afpRates[empForm.afp_code] || 0.1144;
+  const estimatedAfp = estimatedGross * afpRate;
+  const estimatedHealth = empForm.health_system === 'Fonasa' 
+    ? estimatedGross * 0.07 
+    : Math.max(estimatedGross * 0.07, parseFloat(empForm.health_plan_value) || 0);
+  const estimatedAfc = empForm.contract_type === 'Indefinido' ? estimatedGross * 0.006 : 0;
+  const estimatedNet = estimatedGross - estimatedAfp - estimatedHealth - estimatedAfc;
 
   return (
     <div className="dashboard-container">
@@ -386,7 +397,7 @@ function App() {
         </>
       )}
 
-      {/* MODAL FICHA EMPLEADO */}
+      {/* MODAL FICHA EMPLEADO (CON ESTIMADOR DE SUELDO) */}
       {isEmpModalOpen && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -443,6 +454,20 @@ function App() {
                   <div className="form-group"><label>Plan Isapre ($)</label><input type="number" min="0" step="any" value={empForm.health_plan_value} onChange={e => setEmpForm({...empForm, health_plan_value: e.target.value})} required /></div>
                 )}
               </div>
+
+              {/* NUEVO BLOQUE DE ESTIMACIÓN DE SUELDO LÍQUIDO */}
+              {estimatedGross > 0 && (
+                <div style={{ marginTop: '15px', padding: '15px', backgroundColor: 'rgba(72, 202, 228, 0.05)', border: '1px solid rgba(72, 202, 228, 0.2)', borderRadius: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Sueldo Líquido Estimado:</span>
+                    <strong style={{ fontSize: '1.2rem', color: '#4ade80' }}>{formatMoney(estimatedNet)}</strong>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.7rem', color: '#64748b', fontStyle: 'italic', lineHeight: '1.4' }}>
+                    <strong>IMPORTANTE:</strong> El sueldo líquido mostrado es una estimación basada en los descuentos legales mínimos (AFP, Salud 7% y Cesantía). El monto final puede variar según el plan de Isapre contratado, cotizaciones adicionales o bonos imponibles.
+                  </p>
+                </div>
+              )}
+
               <button type="submit" className="btn-submit" style={{ marginTop: '20px' }}>Guardar Ficha</button>
             </form>
           </div>
@@ -461,8 +486,14 @@ function App() {
             
             <form onSubmit={handleGeneratePayroll}>
               <div className="form-grid">
-                <div className="form-group"><label>Periodo</label><input type="month" value={payrollForm.period} onChange={e => setPayrollForm({...payrollForm, period: e.target.value})} required /></div>
-                <div className="form-group"><label>Sueldo Base Bruto ($)</label><input type="number" min="0" step="any" value={payrollForm.gross_salary} onChange={e => setPayrollForm({...payrollForm, gross_salary: e.target.value})} required /></div>
+                <div className="form-group">
+                  <label>Periodo a Liquidar (Mes/Año)</label>
+                  <input type="month" value={payrollForm.period} onChange={e => setPayrollForm({...payrollForm, period: e.target.value})} required />
+                </div>
+                <div className="form-group">
+                  <label>Sueldo Base Bruto ($)</label>
+                  <input type="number" min="0" step="any" value={payrollForm.gross_salary} onChange={e => setPayrollForm({...payrollForm, gross_salary: e.target.value})} required />
+                </div>
               </div>
               <div className="form-grid">
                 <div className="form-group"><label>Bonos Imponibles ($)</label><input type="number" min="0" step="any" value={payrollForm.bonuses} onChange={e => setPayrollForm({...payrollForm, bonuses: e.target.value})} placeholder="Ej: 50000" /></div>

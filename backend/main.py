@@ -81,9 +81,9 @@ def delete_employee(emp_id: int, db: Session = Depends(get_db)):
     db.delete(emp); db.commit()
     return {"status": "success"}
 
-# --- RUTAS DE LIQUIDACIONES (CON LÓGICA DE NEGOCIO) ---
+# --- RUTAS DE LIQUIDACIONES ---
 AFP_RATES = {"Habitat": 0.1127, "Cuprum": 0.1144, "Modelo": 0.1058, "Capital": 0.1144, "Provida": 0.1145, "PlanVital": 0.1116, "Uno": 0.1069}
-HONORARIOS_RETENTION = 0.1525 # 15.25% para 2026
+HONORARIOS_RETENTION = 0.1525
 
 @app.get("/api/payroll")
 def get_payrolls(db: Session = Depends(get_db)):
@@ -103,7 +103,6 @@ def calculate_payroll(data: PayrollInput, db: Session = Depends(get_db)):
     emp = db.query(models.Employee).filter(models.Employee.id == data.employee_id).first()
     if not emp: raise HTTPException(status_code=404, detail="Empleado no encontrado")
     
-    # Validar que no exista otra liquidación para el mismo empleado y periodo
     existing = db.query(models.Payroll).filter(
         models.Payroll.employee_id == data.employee_id,
         models.Payroll.period == data.period
@@ -111,12 +110,10 @@ def calculate_payroll(data: PayrollInput, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail="Ya existe una liquidación para este trabajador en el periodo seleccionado.")
     
-    # Calcular el Bruto Total (Sueldo Base + Bonos + Horas Extras)
     bruto_total = data.gross_salary + data.bonuses + data.overtime
     
-    # Lógica para Honorarios (Boleta)
     if emp.contract_type == 'Honorarios':
-        if bruto_total < 220417: # Monto exento aproximado
+        if bruto_total < 220417:
             retencion = 0.0
         else:
             retencion = bruto_total * HONORARIOS_RETENTION
@@ -125,7 +122,6 @@ def calculate_payroll(data: PayrollInput, db: Session = Depends(get_db)):
         health_amount = 0.0
         unemployment_amount = 0.0
     else:
-        # Lógica para Contrato de Trabajo
         afp_rate = AFP_RATES.get(emp.afp_code, 0.1144)
         afp_amount = bruto_total * afp_rate
         
@@ -137,7 +133,6 @@ def calculate_payroll(data: PayrollInput, db: Session = Depends(get_db)):
         unemployment_amount = bruto_total * 0.006 if emp.contract_type == "Indefinido" else 0
         net_salary = bruto_total - afp_amount - health_amount - unemployment_amount
     
-    # Guardar Liquidación
     nueva_liq = models.Payroll(
         employee_id=emp.id, period=data.period, gross_salary=bruto_total,
         afp_amount=afp_amount, health_amount=health_amount,
@@ -145,9 +140,15 @@ def calculate_payroll(data: PayrollInput, db: Session = Depends(get_db)):
     )
     db.add(nueva_liq)
     
-    # REGISTRAR AUTOMÁTICAMENTE EL EGRESO EN FLUJO DE CAJA
+    # --- CORRECCIÓN: REGISTRAR EGRESO CON LA FECHA DEL PERIODO ---
+    try:
+        # Convierte "2026-10" en una fecha válida "2026-10-01T12:00:00"
+        tx_date = datetime.datetime.fromisoformat(f"{data.period}-01T12:00:00")
+    except ValueError:
+        tx_date = datetime.datetime.now()
+
     new_tx = models.Transaction(
-        date=datetime.datetime.now(),
+        date=tx_date,
         type="EGRESO",
         amount=net_salary,
         description=f"Pago de sueldo {emp.first_name} {emp.last_name} - Periodo {data.period}",
@@ -173,8 +174,6 @@ def export_previred(period: str, db: Session = Depends(get_db)):
     lines = []
     for p in payrolls:
         emp = db.query(models.Employee).filter(models.Employee.id == p.employee_id).first()
-        # Formato simplificado de 105 campos (solo algunos campos clave para el MVP)
-        # RUT | DV | Apellidos | Nombres | Periodo | Renta Imponible | AFP | Salud | Cesantía
         rut_clean = emp.rut.replace(".", "").replace("-", "")
         dv = rut_clean[-1]
         rut_body = rut_clean[:-1]
