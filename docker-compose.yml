@@ -9,6 +9,7 @@ services:
       - "8001:8001"
     volumes:
       - ./backend/pro_pyme.db:/app/pro_pyme.db
+      - ./backend/static:/app/static  # <-- NUEVO: Guarda las fotos fuera del contenedor
 
   frontend:
     build: ./frontend

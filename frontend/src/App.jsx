@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import './App.css'
 import { jsPDF } from 'jspdf'
 import 'jspdf-autotable'
 
 const API_URL = `/api`
+// Para las imágenes, usamos la ruta absoluta al backend (puerto 8001)
+const BASE_URL = window.location.protocol + '//' + window.location.hostname + ':8001'
 
 // --- COMPONENTES SVG ---
 const IconChart = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
@@ -17,14 +19,14 @@ const IconDownload = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentC
 const IconX = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
 const IconArrowDown = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
 const IconArrowUp = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+const IconEye = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
 
-// --- UTILIDADES DE RUT ---
+// --- UTILIDADES ---
 const cleanRut = (rut) => rut.replace(/[^0-9kK]/g, '').toUpperCase();
 const formatRut = (rut) => {
   const clean = cleanRut(rut);
   if (clean.length <= 1) return clean;
-  const dv = clean.slice(-1);
-  const body = clean.slice(0, -1);
+  const dv = clean.slice(-1); const body = clean.slice(0, -1);
   let formattedBody = '';
   for (let i = body.length - 1, j = 0; i >= 0; i--, j++) {
     formattedBody = body[i] + formattedBody;
@@ -33,14 +35,11 @@ const formatRut = (rut) => {
   return `${formattedBody}-${dv}`;
 };
 const isValidRut = (rut) => {
-  const clean = cleanRut(rut);
-  if (clean.length < 2) return false;
-  const body = clean.slice(0, -1);
-  const dv = clean.slice(-1);
+  const clean = cleanRut(rut); if (clean.length < 2) return false;
+  const body = clean.slice(0, -1); const dv = clean.slice(-1);
   let sum = 0, multiplier = 2;
   for (let i = body.length - 1; i >= 0; i--) {
-    sum += parseInt(body[i]) * multiplier;
-    multiplier = multiplier === 7 ? 2 : multiplier + 1;
+    sum += parseInt(body[i]) * multiplier; multiplier = multiplier === 7 ? 2 : multiplier + 1;
   }
   const mod = 11 - (sum % 11);
   const calculatedDv = mod === 11 ? '0' : mod === 10 ? 'K' : mod.toString();
@@ -49,11 +48,21 @@ const isValidRut = (rut) => {
 
 function App() {
   const [activeTab, setActiveTab] = useState('caja')
-
   const [transactions, setTransactions] = useState([])
   const [selectedMonth, setSelectedMonth] = useState((new Date().getMonth() + 1).toString().padStart(2, '0'))
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString())
-  const [form, setForm] = useState({ date: new Date().toISOString().split('T')[0], type: 'INGRESO', amount: '', description: '', category: '' })
+  
+  // ESTADOS DEL FORMULARIO
+  const [form, setForm] = useState({ 
+    date: new Date().toISOString().split('T')[0], 
+    type: 'INGRESO', 
+    amount: '', 
+    description: '', 
+    category: '',
+    document_type: 'Boleta',
+    has_iva: false
+  })
+  const [receiptFile, setReceiptFile] = useState(null)
 
   const [employees, setEmployees] = useState([])
   const [payrolls, setPayrolls] = useState([])
@@ -88,15 +97,34 @@ function App() {
 
   useEffect(() => { loadData() }, [])
 
+  // --- FLUJO DE CAJA ---
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.amount || parseFloat(form.amount) <= 0) return alert("Monto inválido.")
+    
+    // Preparamos el FormData para enviar archivos
+    const formData = new FormData()
+    formData.append("date", form.date + "T12:00:00Z")
+    formData.append("type", form.type)
+    formData.append("amount", parseFloat(form.amount))
+    formData.append("description", form.description)
+    formData.append("category", form.category)
+    formData.append("document_type", form.document_type)
+    formData.append("has_iva", form.has_iva.toString())
+    if (receiptFile) {
+      formData.append("receipt", receiptFile)
+    }
+
     try {
       const response = await fetch(`${API_URL}/transactions`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, amount: parseFloat(form.amount), date: form.date + 'T12:00:00Z' })
+        method: 'POST',
+        body: formData // Al usar FormData, no se necesita Content-Type header
       })
-      if (response.ok) { setForm({ ...form, amount: '', description: '', category: '' }); loadData() }
+      if (response.ok) { 
+        setForm({ ...form, amount: '', description: '', category: '', has_iva: false, document_type: 'Boleta' }); 
+        setReceiptFile(null); // Limpiar la foto
+        loadData() 
+      }
     } catch (error) { alert("Error de conexión") }
   }
 
@@ -109,10 +137,11 @@ function App() {
     alert("Próximamente: Edición de movimientos en el flujo de caja.")
   }
 
+  // --- EMPLEADOS ---
   const handleSaveEmployee = async (e) => {
     e.preventDefault()
     if (!isValidRut(empForm.rut)) {
-      setRutError('El RUT ingresado no es válido. Verifique el dígito verificador.');
+      setRutError('El RUT ingresado no es válido.');
       return;
     }
     setRutError('');
@@ -133,21 +162,20 @@ function App() {
   }
 
   const handleDeleteEmployee = async (id) => {
-    if (!window.confirm("¿Eliminar esta ficha? Se borrarán sus liquidaciones asociadas.")) return
+    if (!window.confirm("¿Eliminar esta ficha?")) return
     try { await fetch(`${API_URL}/employees/${id}`, { method: 'DELETE' }); loadData() } catch (error) { alert("Error al eliminar") }
   }
 
   const openEmpModal = (emp = null) => {
-    if (emp) {
-      setEmpForm({ ...emp, rut: formatRut(emp.rut) }); setEditingEmpId(emp.id)
-    } else {
+    if (emp) { setEmpForm({ ...emp, rut: formatRut(emp.rut) }); setEditingEmpId(emp.id) } 
+    else {
       setEditingEmpId(null)
       setEmpForm({ rut: '', first_name: '', last_name: '', position: '', afp_code: 'Habitat', health_system: 'Fonasa', health_plan_value: '', contract_type: 'Indefinido', base_salary: '' })
     }
-    setRutError('');
-    setIsEmpModalOpen(true)
+    setRutError(''); setIsEmpModalOpen(true)
   }
 
+  // --- LIQUIDACIONES ---
   const openPayrollModal = (emp) => {
     setSelectedEmp(emp)
     setPayrollForm({ period: `${new Date().getFullYear()}-${(new Date().getMonth() + 1).toString().padStart(2, '0')}`, gross_salary: emp.base_salary.toString(), bonuses: '0', overtime: '0' })
@@ -160,28 +188,19 @@ function App() {
       const response = await fetch(`${API_URL}/payroll`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          employee_id: selectedEmp.id,
-          period: payrollForm.period,
+          employee_id: selectedEmp.id, period: payrollForm.period,
           gross_salary: parseFloat(payrollForm.gross_salary),
-          bonuses: parseFloat(payrollForm.bonuses) || 0,
-          overtime: parseFloat(payrollForm.overtime) || 0
+          bonuses: parseFloat(payrollForm.bonuses) || 0, overtime: parseFloat(payrollForm.overtime) || 0
         })
       })
-      if (response.ok) {
-        setIsPayrollModalOpen(false); loadData()
-        alert("Liquidación generada con éxito.")
-      } else {
-        const err = await response.json(); alert(err.detail || "Error al generar")
-      }
+      if (response.ok) { setIsPayrollModalOpen(false); loadData(); alert("Liquidación generada con éxito.") } 
+      else { const err = await response.json(); alert(err.detail || "Error al generar") }
     } catch (error) { alert("Error de conexión") }
   }
 
   const handleDeletePayroll = async (id) => {
-    if (!window.confirm("¿Eliminar esta liquidación? También se borrará el egreso asociado en el flujo de caja.")) return
-    try { 
-      const res = await fetch(`${API_URL}/payroll/${id}`, { method: 'DELETE' })
-      if (res.ok) loadData()
-    } catch (error) { alert("Error al eliminar") }
+    if (!window.confirm("¿Eliminar esta liquidación?")) return
+    try { const res = await fetch(`${API_URL}/payroll/${id}`, { method: 'DELETE' }); if (res.ok) loadData() } catch (error) { alert("Error al eliminar") }
   }
 
   const downloadPDF = (payroll) => {
@@ -203,10 +222,7 @@ function App() {
       if (!response.ok) throw new Error("Error al generar archivo")
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `Previred_${payroll.period}.txt`
-      a.click()
+      const a = document.createElement('a'); a.href = url; a.download = `Previred_${payroll.period}.txt`; a.click()
     } catch (error) { alert("Error al descargar archivo para Previred") }
   }
 
@@ -273,8 +289,33 @@ function App() {
               </div>
               <div className="form-grid">
                 <div className="form-group"><label>Fecha</label><input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} required /></div>
-                <div className="form-group"><label>Monto ($)</label><input type="number" min="1" step="any" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} required /></div>
-                <div className="form-group"><label>Categoría (Opcional)</label><input type="text" placeholder="Ej: Ventas, Sueldos" value={form.category} onChange={e => setForm({...form, category: e.target.value})} /></div>
+                <div className="form-group"><label>Monto Total ($)</label><input type="number" min="1" step="any" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} required /></div>
+                <div className="form-group">
+                  <label>Tipo de Documento</label>
+                  <select value={form.document_type} onChange={e => setForm({...form, document_type: e.target.value})}>
+                    <option value="Boleta">Boleta</option>
+                    <option value="Factura">Factura</option>
+                    <option value="Honorarios">Boleta de Honorarios</option>
+                    <option value="Exento">Sin Documento / Exento</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>¿Incluye IVA (19%)?</label>
+                  <div className="checkbox-group">
+                    <input type="checkbox" checked={form.has_iva} onChange={e => setForm({...form, has_iva: e.target.checked})} />
+                    <span>Sí, el monto incluye IVA</span>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>Categoría (Opcional)</label>
+                  <input type="text" placeholder="Ej: Ventas, Sueldos" value={form.category} onChange={e => setForm({...form, category: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label>Foto de la Boleta/Factura</label>
+                  <input type="file" accept="image/*" capture="environment" onChange={e => setReceiptFile(e.target.files[0])} style={{ padding: '8px' }} />
+                </div>
               </div>
               <div className="form-group" style={{ marginBottom: '20px' }}><label>Descripción</label><input type="text" value={form.description} onChange={e => setForm({...form, description: e.target.value})} required /></div>
               <button type="submit" className="btn-submit">Guardar Movimiento</button>
@@ -285,18 +326,22 @@ function App() {
             <h2>Historial de Movimientos ({currentMonthName} {selectedYear})</h2>
             <div className="table-responsive">
               <table>
-                <thead><tr><th>Fecha</th><th>Tipo</th><th>Descripción</th><th>Categoría</th><th style={{ textAlign: 'right' }}>Monto</th><th style={{ textAlign: 'center' }}>Acción</th></tr></thead>
+                <thead><tr><th>Fecha</th><th>Tipo</th><th>Doc</th><th>Descripción</th><th>Categoría</th><th style={{ textAlign: 'right' }}>Monto</th><th style={{ textAlign: 'center' }}>Acción</th></tr></thead>
                 <tbody>
-                  {monthlyTransactions.length === 0 && <tr><td colSpan="6" style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>No hay movimientos en este periodo.</td></tr>}
+                  {monthlyTransactions.length === 0 && <tr><td colSpan="7" style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>No hay movimientos en este periodo.</td></tr>}
                   {monthlyTransactions.map(tx => (
                     <tr key={tx.id}>
                       <td data-label="Fecha">{formatDate(tx.date)}</td>
                       <td data-label="Tipo"><span className={`badge ${tx.type === 'INGRESO' ? 'ingreso' : 'egreso'}`}>{tx.type}</span></td>
+                      <td data-label="Doc" style={{ color: '#94a3b8', fontSize: '0.75rem' }}>{tx.document_type || 'Boleta'}</td>
                       <td data-label="Descripción">{tx.description}</td>
                       <td data-label="Categoría" style={{ color: '#94a3b8' }}>{tx.category || '-'}</td>
                       <td data-label="Monto" style={{ fontWeight: 'bold', color: tx.type === 'INGRESO' ? '#4ade80' : '#f87171' }}>{tx.type === 'INGRESO' ? '+' : '-'} {formatMoney(tx.amount)}</td>
                       <td data-label="Acción">
                         <div className="actions-wrapper">
+                          {tx.receipt_image && (
+                            <a href={`${BASE_URL}${tx.receipt_image}`} target="_blank" rel="noreferrer" className="btn-action view-img" title="Ver Foto"><IconEye /></a>
+                          )}
                           <button className="btn-icon edit" onClick={() => handleEditTx(tx)}><IconEdit /></button>
                           <button className="btn-icon delete" onClick={() => handleDeleteTx(tx.id)}><IconTrash /></button>
                         </div>
@@ -312,11 +357,10 @@ function App() {
 
       {activeTab === 'remuneraciones' && (
         <>
+          {/* ... (El código de Remuneraciones se mantiene igual) ... */}
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '12px' }}>
               <h2 style={{ margin: 0, border: 'none', padding: 0 }}>Gestión de Personal</h2>
-              
-              {/* BOTÓN NUEVO TRABAJADOR (MÁS PEQUEÑO) */}
               <button className="btn-submit" style={{ width: 'auto', marginTop: 0, padding: '0 15px', height: '32px', fontSize: '0.8rem' }} onClick={() => openEmpModal()}>
                 <IconPlus style={{ width: '14px', height: '14px' }} /> Nuevo Trabajador
               </button>
@@ -358,14 +402,8 @@ function App() {
               <table className="payroll-table">
                 <thead>
                   <tr>
-                    <th>Periodo</th>
-                    <th>Trabajador</th>
-                    <th>Sueldo Bruto</th>
-                    <th>AFP</th>
-                    <th>Salud</th>
-                    <th>Cesantía</th>
-                    <th style={{ textAlign: 'center' }}>Sueldo Líquido</th>
-                    <th style={{ textAlign: 'center' }}>Acciones</th>
+                    <th>Periodo</th><th>Trabajador</th><th>Sueldo Bruto</th><th>AFP</th><th>Salud</th><th>Cesantía</th>
+                    <th style={{ textAlign: 'center' }}>Sueldo Líquido</th><th style={{ textAlign: 'center' }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -378,9 +416,7 @@ function App() {
                       <td data-label="AFP" className="deduction">-{formatMoney(p.afp_amount)}</td>
                       <td data-label="Salud" className="deduction">-{formatMoney(p.health_amount)}</td>
                       <td data-label="Cesantía" className="deduction">-{formatMoney(p.unemployment_amount)}</td>
-                      <td data-label="Sueldo Líquido">
-                        <span className="net-salary-box">{formatMoney(p.net_salary)}</span>
-                      </td>
+                      <td data-label="Sueldo Líquido"><span className="net-salary-box">{formatMoney(p.net_salary)}</span></td>
                       <td data-label="Acciones">
                         <div className="actions-wrapper">
                           <button className="btn-action pdf" title="Descargar PDF" onClick={() => downloadPDF(p)}><IconFile /> PDF</button>
@@ -471,14 +507,8 @@ function App() {
             
             <form onSubmit={handleGeneratePayroll}>
               <div className="form-grid">
-                <div className="form-group">
-                  <label>Periodo a Liquidar (Mes/Año)</label>
-                  <input type="month" value={payrollForm.period} onChange={e => setPayrollForm({...payrollForm, period: e.target.value})} required />
-                </div>
-                <div className="form-group">
-                  <label>Sueldo Base Bruto ($)</label>
-                  <input type="number" min="0" step="any" value={payrollForm.gross_salary} onChange={e => setPayrollForm({...payrollForm, gross_salary: e.target.value})} required />
-                </div>
+                <div className="form-group"><label>Periodo a Liquidar (Mes/Año)</label><input type="month" value={payrollForm.period} onChange={e => setPayrollForm({...payrollForm, period: e.target.value})} required /></div>
+                <div className="form-group"><label>Sueldo Base Bruto ($)</label><input type="number" min="0" step="any" value={payrollForm.gross_salary} onChange={e => setPayrollForm({...payrollForm, gross_salary: e.target.value})} required /></div>
               </div>
               <div className="form-grid">
                 <div className="form-group"><label>Bonos Imponibles ($)</label><input type="number" min="0" step="any" value={payrollForm.bonuses} onChange={e => setPayrollForm({...payrollForm, bonuses: e.target.value})} placeholder="Ej: 50000" /></div>
