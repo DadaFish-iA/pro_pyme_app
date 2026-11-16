@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
 import { jsPDF } from 'jspdf'
 import 'jspdf-autotable'
 
 const API_URL = `/api`
-// Para las imágenes, usamos la ruta absoluta al backend (puerto 8001)
 const BASE_URL = window.location.protocol + '//' + window.location.hostname + ':8001'
 
 // --- COMPONENTES SVG ---
@@ -20,6 +19,7 @@ const IconX = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" s
 const IconArrowDown = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
 const IconArrowUp = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
 const IconEye = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+const IconUpload = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
 
 // --- UTILIDADES ---
 const cleanRut = (rut) => rut.replace(/[^0-9kK]/g, '').toUpperCase();
@@ -52,15 +52,9 @@ function App() {
   const [selectedMonth, setSelectedMonth] = useState((new Date().getMonth() + 1).toString().padStart(2, '0'))
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString())
   
-  // ESTADOS DEL FORMULARIO
   const [form, setForm] = useState({ 
-    date: new Date().toISOString().split('T')[0], 
-    type: 'INGRESO', 
-    amount: '', 
-    description: '', 
-    category: '',
-    document_type: 'Boleta',
-    has_iva: false
+    date: new Date().toISOString().split('T')[0], type: 'INGRESO', amount: '', description: '', category: '',
+    document_type: 'Factura'
   })
   const [receiptFile, setReceiptFile] = useState(null)
 
@@ -68,19 +62,12 @@ function App() {
   const [payrolls, setPayrolls] = useState([])
   const [isEmpModalOpen, setIsEmpModalOpen] = useState(false)
   const [editingEmpId, setEditingEmpId] = useState(null)
-  const [empForm, setEmpForm] = useState({
-    rut: '', first_name: '', last_name: '', position: '',
-    afp_code: 'Habitat', health_system: 'Fonasa', health_plan_value: '',
-    contract_type: 'Indefinido', base_salary: ''
-  })
+  const [empForm, setEmpForm] = useState({ rut: '', first_name: '', last_name: '', position: '', afp_code: 'Habitat', health_system: 'Fonasa', health_plan_value: '', contract_type: 'Indefinido', base_salary: '' })
   const [rutError, setRutError] = useState('')
 
   const [isPayrollModalOpen, setIsPayrollModalOpen] = useState(false)
   const [selectedEmp, setSelectedEmp] = useState(null)
-  const [payrollForm, setPayrollForm] = useState({
-    period: `${new Date().getFullYear()}-${(new Date().getMonth() + 1).toString().padStart(2, '0')}`,
-    gross_salary: '', bonuses: '', overtime: ''
-  })
+  const [payrollForm, setPayrollForm] = useState({ period: `${new Date().getFullYear()}-${(new Date().getMonth() + 1).toString().padStart(2, '0')}`, gross_salary: '', bonuses: '', overtime: '' })
 
   const loadData = async () => {
     try {
@@ -97,12 +84,14 @@ function App() {
 
   useEffect(() => { loadData() }, [])
 
-  // --- FLUJO DE CAJA ---
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.amount || parseFloat(form.amount) <= 0) return alert("Monto inválido.")
     
-    // Preparamos el FormData para enviar archivos
+    // Lógica automática de IVA
+    const isAfecta = form.document_type === 'Factura' || form.document_type === 'Boleta';
+    const has_iva_str = isAfecta ? "true" : "false";
+
     const formData = new FormData()
     formData.append("date", form.date + "T12:00:00Z")
     formData.append("type", form.type)
@@ -110,20 +99,14 @@ function App() {
     formData.append("description", form.description)
     formData.append("category", form.category)
     formData.append("document_type", form.document_type)
-    formData.append("has_iva", form.has_iva.toString())
-    if (receiptFile) {
-      formData.append("receipt", receiptFile)
-    }
+    formData.append("has_iva", has_iva_str)
+    if (receiptFile) formData.append("receipt", receiptFile)
 
     try {
-      const response = await fetch(`${API_URL}/transactions`, {
-        method: 'POST',
-        body: formData // Al usar FormData, no se necesita Content-Type header
-      })
+      const response = await fetch(`${API_URL}/transactions`, { method: 'POST', body: formData })
       if (response.ok) { 
-        setForm({ ...form, amount: '', description: '', category: '', has_iva: false, document_type: 'Boleta' }); 
-        setReceiptFile(null); // Limpiar la foto
-        loadData() 
+        setForm({ ...form, amount: '', description: '', category: '', document_type: 'Factura' }); 
+        setReceiptFile(null); loadData() 
       }
     } catch (error) { alert("Error de conexión") }
   }
@@ -133,17 +116,12 @@ function App() {
     try { await fetch(`${API_URL}/transactions/${id}`, { method: 'DELETE' }); loadData() } catch (error) { alert("Error al eliminar") }
   }
 
-  const handleEditTx = (tx) => {
-    alert("Próximamente: Edición de movimientos en el flujo de caja.")
-  }
+  const handleEditTx = (tx) => { alert("Próximamente: Edición de movimientos.") }
 
   // --- EMPLEADOS ---
   const handleSaveEmployee = async (e) => {
     e.preventDefault()
-    if (!isValidRut(empForm.rut)) {
-      setRutError('El RUT ingresado no es válido.');
-      return;
-    }
+    if (!isValidRut(empForm.rut)) { setRutError('El RUT ingresado no es válido.'); return; }
     setRutError('');
     const payload = { ...empForm, base_salary: parseFloat(empForm.base_salary), health_plan_value: parseFloat(empForm.health_plan_value) || 0 }
     const url = editingEmpId ? `${API_URL}/employees/${editingEmpId}` : `${API_URL}/employees`
@@ -155,9 +133,7 @@ function App() {
         setIsEmpModalOpen(false); setEditingEmpId(null)
         setEmpForm({ rut: '', first_name: '', last_name: '', position: '', afp_code: 'Habitat', health_system: 'Fonasa', health_plan_value: '', contract_type: 'Indefinido', base_salary: '' })
         loadData()
-      } else {
-        const err = await response.json(); alert(err.detail || "Error al guardar")
-      }
+      } else { const err = await response.json(); alert(err.detail || "Error al guardar") }
     } catch (error) { alert("Error de conexión") }
   }
 
@@ -187,11 +163,7 @@ function App() {
     try {
       const response = await fetch(`${API_URL}/payroll`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          employee_id: selectedEmp.id, period: payrollForm.period,
-          gross_salary: parseFloat(payrollForm.gross_salary),
-          bonuses: parseFloat(payrollForm.bonuses) || 0, overtime: parseFloat(payrollForm.overtime) || 0
-        })
+        body: JSON.stringify({ employee_id: selectedEmp.id, period: payrollForm.period, gross_salary: parseFloat(payrollForm.gross_salary), bonuses: parseFloat(payrollForm.bonuses) || 0, overtime: parseFloat(payrollForm.overtime) || 0 })
       })
       if (response.ok) { setIsPayrollModalOpen(false); loadData(); alert("Liquidación generada con éxito.") } 
       else { const err = await response.json(); alert(err.detail || "Error al generar") }
@@ -234,10 +206,18 @@ function App() {
 
   const filterString = `${selectedYear}-${selectedMonth}`
   const monthlyTransactions = transactions.filter(tx => tx.date.startsWith(filterString))
+  
+  // CÁLCULOS
   const total_ingresos = monthlyTransactions.filter(t => t.type === 'INGRESO').reduce((acc, t) => acc + t.amount, 0)
   const total_egresos = monthlyTransactions.filter(t => t.type === 'EGRESO').reduce((acc, t) => acc + t.amount, 0)
   const rli = total_ingresos - total_egresos
   const ppm = total_ingresos * 0.0025
+  
+  // CÁLCULO DE IVA
+  const iva_debito = monthlyTransactions.filter(t => t.type === 'INGRESO').reduce((acc, t) => acc + (t.tax_amount || 0), 0)
+  const iva_credito = monthlyTransactions.filter(t => t.type === 'EGRESO').reduce((acc, t) => acc + (t.tax_amount || 0), 0)
+  const iva_a_pagar = Math.max(0, iva_debito - iva_credito)
+  const iva_a_favor = Math.max(0, iva_credito - iva_debito)
 
   const estimatedGross = parseFloat(empForm.base_salary) || 0;
   const afpRates = { "Habitat": 0.1127, "Cuprum": 0.1144, "Modelo": 0.1058, "Capital": 0.1144, "Provida": 0.1145, "PlanVital": 0.1116, "Uno": 0.1069 };
@@ -280,6 +260,23 @@ function App() {
             <div className="summary-card"><h3>PPM Estimado<br/>(0,25%)</h3><div className="value text-yellow">{formatMoney(ppm)}</div></div>
           </div>
 
+          <div className="iva-grid">
+            <div className="iva-card">
+              <h3>IVA Débito (Ventas)</h3>
+              <div className="value text-blue">{formatMoney(iva_debito)}</div>
+            </div>
+            <div className="iva-card">
+              <h3>IVA Crédito (Compras)</h3>
+              <div className="value text-green">{formatMoney(iva_credito)}</div>
+            </div>
+            <div className="iva-card" style={{ borderTopColor: iva_a_pagar > 0 ? '#f87171' : '#4ade80' }}>
+              <h3>Remanente</h3>
+              <div className={`value ${iva_a_pagar > 0 ? 'text-red' : 'text-green'}`}>
+                {iva_a_pagar > 0 ? `A Pagar: ${formatMoney(iva_a_pagar)}` : `A Favor: ${formatMoney(iva_a_favor)}`}
+              </div>
+            </div>
+          </div>
+
           <div className="card">
             <h2>Registrar un Movimiento</h2>
             <form onSubmit={handleSubmit}>
@@ -293,28 +290,25 @@ function App() {
                 <div className="form-group">
                   <label>Tipo de Documento</label>
                   <select value={form.document_type} onChange={e => setForm({...form, document_type: e.target.value})}>
-                    <option value="Boleta">Boleta</option>
-                    <option value="Factura">Factura</option>
-                    <option value="Honorarios">Boleta de Honorarios</option>
-                    <option value="Exento">Sin Documento / Exento</option>
+                    <option value="Factura">Factura (Afecta a IVA)</option>
+                    <option value="Boleta">Boleta (Afecta a IVA)</option>
+                    <option value="Exento">Exento / Sin Documento</option>
                   </select>
                 </div>
               </div>
               <div className="form-grid">
                 <div className="form-group">
-                  <label>¿Incluye IVA (19%)?</label>
-                  <div className="checkbox-group">
-                    <input type="checkbox" checked={form.has_iva} onChange={e => setForm({...form, has_iva: e.target.checked})} />
-                    <span>Sí, el monto incluye IVA</span>
-                  </div>
-                </div>
-                <div className="form-group">
                   <label>Categoría (Opcional)</label>
                   <input type="text" placeholder="Ej: Ventas, Sueldos" value={form.category} onChange={e => setForm({...form, category: e.target.value})} />
                 </div>
-                <div className="form-group">
-                  <label>Foto de la Boleta/Factura</label>
-                  <input type="file" accept="image/*" capture="environment" onChange={e => setReceiptFile(e.target.files[0])} style={{ padding: '8px' }} />
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <label>Adjuntar Documento (PDF o Foto)</label>
+                  <div className="file-upload-wrapper">
+                    <input type="file" id="receipt-upload" accept=".pdf, image/*" onChange={e => setReceiptFile(e.target.files[0])} />
+                    <label htmlFor="receipt-upload" className={`file-upload-label ${receiptFile ? 'has-file' : ''}`}>
+                      <IconUpload /> {receiptFile ? receiptFile.name : 'Seleccionar archivo o tomar foto...'}
+                    </label>
+                  </div>
                 </div>
               </div>
               <div className="form-group" style={{ marginBottom: '20px' }}><label>Descripción</label><input type="text" value={form.description} onChange={e => setForm({...form, description: e.target.value})} required /></div>
@@ -333,14 +327,14 @@ function App() {
                     <tr key={tx.id}>
                       <td data-label="Fecha">{formatDate(tx.date)}</td>
                       <td data-label="Tipo"><span className={`badge ${tx.type === 'INGRESO' ? 'ingreso' : 'egreso'}`}>{tx.type}</span></td>
-                      <td data-label="Doc" style={{ color: '#94a3b8', fontSize: '0.75rem' }}>{tx.document_type || 'Boleta'}</td>
+                      <td data-label="Doc" style={{ color: '#94a3b8', fontSize: '0.75rem' }}>{tx.document_type || 'Factura'}</td>
                       <td data-label="Descripción">{tx.description}</td>
                       <td data-label="Categoría" style={{ color: '#94a3b8' }}>{tx.category || '-'}</td>
                       <td data-label="Monto" style={{ fontWeight: 'bold', color: tx.type === 'INGRESO' ? '#4ade80' : '#f87171' }}>{tx.type === 'INGRESO' ? '+' : '-'} {formatMoney(tx.amount)}</td>
                       <td data-label="Acción">
                         <div className="actions-wrapper">
                           {tx.receipt_image && (
-                            <a href={`${BASE_URL}${tx.receipt_image}`} target="_blank" rel="noreferrer" className="btn-action view-img" title="Ver Foto"><IconEye /></a>
+                            <a href={`${BASE_URL}${tx.receipt_image}`} target="_blank" rel="noreferrer" className="btn-action view-img" title="Ver Documento"><IconEye /></a>
                           )}
                           <button className="btn-icon edit" onClick={() => handleEditTx(tx)}><IconEdit /></button>
                           <button className="btn-icon delete" onClick={() => handleDeleteTx(tx.id)}><IconTrash /></button>
@@ -357,12 +351,11 @@ function App() {
 
       {activeTab === 'remuneraciones' && (
         <>
-          {/* ... (El código de Remuneraciones se mantiene igual) ... */}
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '12px' }}>
               <h2 style={{ margin: 0, border: 'none', padding: 0 }}>Gestión de Personal</h2>
-              <button className="btn-submit" style={{ width: 'auto', marginTop: 0, padding: '0 15px', height: '32px', fontSize: '0.8rem' }} onClick={() => openEmpModal()}>
-                <IconPlus style={{ width: '14px', height: '14px' }} /> Nuevo Trabajador
+              <button className="btn-small-add" onClick={() => openEmpModal()}>
+                <IconPlus /> Nuevo Trabajador
               </button>
             </div>
             
