@@ -46,6 +46,12 @@ const isValidRut = (rut) => {
   return calculatedDv === dv;
 };
 
+// Función para formatear el monto con puntos de miles
+const formatNumberInput = (value) => {
+  const cleanValue = value.replace(/\D/g, '');
+  return cleanValue.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+};
+
 function App() {
   const [activeTab, setActiveTab] = useState('caja')
   const [transactions, setTransactions] = useState([])
@@ -86,20 +92,17 @@ function App() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.amount || parseFloat(form.amount) <= 0) return alert("Monto inválido.")
+    // Limpiamos los puntos antes de parsear
+    const cleanAmount = form.amount.replace(/\./g, '');
+    if (!cleanAmount || parseFloat(cleanAmount) <= 0) return alert("Monto inválido.")
     
-    // Lógica automática de IVA
-    const isAfecta = form.document_type === 'Factura' || form.document_type === 'Boleta';
-    const has_iva_str = isAfecta ? "true" : "false";
-
     const formData = new FormData()
     formData.append("date", form.date + "T12:00:00Z")
     formData.append("type", form.type)
-    formData.append("amount", parseFloat(form.amount))
+    formData.append("amount", parseFloat(cleanAmount))
     formData.append("description", form.description)
     formData.append("category", form.category)
     formData.append("document_type", form.document_type)
-    formData.append("has_iva", has_iva_str)
     if (receiptFile) formData.append("receipt", receiptFile)
 
     try {
@@ -213,7 +216,6 @@ function App() {
   const rli = total_ingresos - total_egresos
   const ppm = total_ingresos * 0.0025
   
-  // CÁLCULO DE IVA
   const iva_debito = monthlyTransactions.filter(t => t.type === 'INGRESO').reduce((acc, t) => acc + (t.tax_amount || 0), 0)
   const iva_credito = monthlyTransactions.filter(t => t.type === 'EGRESO').reduce((acc, t) => acc + (t.tax_amount || 0), 0)
   const iva_a_pagar = Math.max(0, iva_debito - iva_credito)
@@ -286,13 +288,22 @@ function App() {
               </div>
               <div className="form-grid">
                 <div className="form-group"><label>Fecha</label><input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} required /></div>
-                <div className="form-group"><label>Monto Total ($)</label><input type="number" min="1" step="any" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} required /></div>
+                <div className="form-group">
+                  <label>Monto Total ($)</label>
+                  <input 
+                    type="text" 
+                    value={form.amount} 
+                    onChange={e => setForm({...form, amount: formatNumberInput(e.target.value)})} 
+                    placeholder="Ej: 100.000" 
+                    required 
+                  />
+                </div>
                 <div className="form-group">
                   <label>Tipo de Documento</label>
                   <select value={form.document_type} onChange={e => setForm({...form, document_type: e.target.value})}>
                     <option value="Factura">Factura (Afecta a IVA)</option>
-                    <option value="Boleta">Boleta (Afecta a IVA)</option>
-                    <option value="Exento">Exento / Sin Documento</option>
+                    <option value="Boleta de Compra">Boleta de Compra (No afecta a IVA)</option>
+                    <option value="Gasto sin Documento">Gasto sin Documento</option>
                   </select>
                 </div>
               </div>
@@ -301,15 +312,19 @@ function App() {
                   <label>Categoría (Opcional)</label>
                   <input type="text" placeholder="Ej: Ventas, Sueldos" value={form.category} onChange={e => setForm({...form, category: e.target.value})} />
                 </div>
-                <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                  <label>Adjuntar Documento (PDF o Foto)</label>
-                  <div className="file-upload-wrapper">
-                    <input type="file" id="receipt-upload" accept=".pdf, image/*" onChange={e => setReceiptFile(e.target.files[0])} />
-                    <label htmlFor="receipt-upload" className={`file-upload-label ${receiptFile ? 'has-file' : ''}`}>
-                      <IconUpload /> {receiptFile ? receiptFile.name : 'Seleccionar archivo o tomar foto...'}
-                    </label>
+                
+                {/* CONDICIÓN PARA MOSTRAR EL INPUT DE ARCHIVO */}
+                {form.document_type !== 'Gasto sin Documento' && (
+                  <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                    <label>Adjuntar Documento (PDF o Foto)</label>
+                    <div className="file-upload-wrapper">
+                      <input type="file" id="receipt-upload" accept=".pdf, image/*" onChange={e => setReceiptFile(e.target.files[0])} />
+                      <label htmlFor="receipt-upload" className={`file-upload-label ${receiptFile ? 'has-file' : ''}`}>
+                        <IconUpload /> {receiptFile ? receiptFile.name : 'Seleccionar archivo o tomar foto...'}
+                      </label>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
               <div className="form-group" style={{ marginBottom: '20px' }}><label>Descripción</label><input type="text" value={form.description} onChange={e => setForm({...form, description: e.target.value})} required /></div>
               <button type="submit" className="btn-submit">Guardar Movimiento</button>
@@ -349,6 +364,7 @@ function App() {
         </>
       )}
 
+      {/* --- RESTO DE LA VISTA DE REMUNERACIONES (SIN CAMBIOS) --- */}
       {activeTab === 'remuneraciones' && (
         <>
           <div className="card">

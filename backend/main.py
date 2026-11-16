@@ -16,7 +16,6 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Pro Pyme API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
-# Crear carpeta para imágenes si no existe
 os.makedirs("static/uploads", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -25,20 +24,15 @@ def get_db():
     try: yield db
     finally: db.close()
 
-# --- MODELOS PYDANTIC ---
 class EmployeeInput(BaseModel):
     rut: str; first_name: str; last_name: str; position: str
     afp_code: str; health_system: str; health_plan_value: float
     contract_type: str; base_salary: float
 
 class PayrollInput(BaseModel):
-    employee_id: int
-    period: str
-    gross_salary: float
-    bonuses: float = 0.0
-    overtime: float = 0.0
+    employee_id: int; period: str; gross_salary: float; bonuses: float = 0.0; overtime: float = 0.0
 
-# --- RUTAS DE TRANSACCIONES (CON FOTO E IVA) ---
+# --- RUTAS DE TRANSACCIONES ---
 @app.get("/api/transactions")
 def get_transactions(db: Session = Depends(get_db)):
     return db.query(models.Transaction).order_by(models.Transaction.date.desc()).all()
@@ -47,18 +41,18 @@ def get_transactions(db: Session = Depends(get_db)):
 def create_transaction(
     date: str = Form(...), type: str = Form(...), amount: float = Form(...),
     description: str = Form(...), category: str = Form(None),
-    document_type: str = Form("Boleta"), has_iva: str = Form("false"),
+    document_type: str = Form("Factura"),
     receipt: UploadFile = File(None), db: Session = Depends(get_db)
 ):
-    # 1. Calcular IVA (19%) si aplica
+    # LÓGICA DE IVA: Solo las Facturas generan IVA en este régimen simplificado
     tax_amount = 0.0
-    if has_iva.lower() == "true":
+    if document_type == "Factura":
         # El monto ingresado es el TOTAL (bruto). El IVA es: Monto - (Monto / 1.19)
         tax_amount = amount - (amount / 1.19)
 
-    # 2. Guardar la imagen si se subió
     image_path = None
-    if receipt:
+    # Solo permitimos subir archivos si NO es "Gasto sin Documento"
+    if receipt and document_type != "Gasto sin Documento":
         file_extension = os.path.splitext(receipt.filename)[1]
         file_name = f"{uuid.uuid4()}{file_extension}"
         file_path = f"static/uploads/{file_name}"
@@ -78,40 +72,35 @@ def create_transaction(
 def delete_transaction(tx_id: int, db: Session = Depends(get_db)):
     tx = db.query(models.Transaction).filter(models.Transaction.id == tx_id).first()
     if not tx: raise HTTPException(status_code=404, detail="No encontrada")
-    # Borrar imagen física si existe
     if tx.receipt_image:
         try: os.remove(tx.receipt_image.lstrip('/'))
         except: pass
     db.delete(tx); db.commit()
     return {"status": "success"}
 
-# --- RESTO DE RUTAS (EMPLEADOS Y LIQUIDACIONES) ---
+# --- EMPLEADOS Y LIQUIDACIONES (SIN CAMBIOS) ---
 @app.get("/api/employees")
-def get_employees(db: Session = Depends(get_db)):
-    return db.query(models.Employee).all()
+def get_employees(db: Session = Depends(get_db)): return db.query(models.Employee).all()
 
 @app.post("/api/employees")
 def create_employee(data: EmployeeInput, db: Session = Depends(get_db)):
     if db.query(models.Employee).filter(models.Employee.rut == data.rut).first():
         raise HTTPException(status_code=400, detail="El RUT ya está registrado")
     nuevo_emp = models.Employee(**data.dict())
-    db.add(nuevo_emp); db.commit(); db.refresh(nuevo_emp)
-    return nuevo_emp
+    db.add(nuevo_emp); db.commit(); db.refresh(nuevo_emp); return nuevo_emp
 
 @app.put("/api/employees/{emp_id}")
 def update_employee(emp_id: int, data: EmployeeInput, db: Session = Depends(get_db)):
     emp = db.query(models.Employee).filter(models.Employee.id == emp_id).first()
     if not emp: raise HTTPException(status_code=404, detail="Empleado no encontrado")
     for key, value in data.dict().items(): setattr(emp, key, value)
-    db.commit(); db.refresh(emp)
-    return emp
+    db.commit(); db.refresh(emp); return emp
 
 @app.delete("/api/employees/{emp_id}")
 def delete_employee(emp_id: int, db: Session = Depends(get_db)):
     emp = db.query(models.Employee).filter(models.Employee.id == emp_id).first()
     if not emp: raise HTTPException(status_code=404, detail="Empleado no encontrado")
-    db.delete(emp); db.commit()
-    return {"status": "success"}
+    db.delete(emp); db.commit(); return {"status": "success"}
 
 AFP_RATES = {"Habitat": 0.1127, "Cuprum": 0.1144, "Modelo": 0.1058, "Capital": 0.1144, "Provida": 0.1145, "PlanVital": 0.1116, "Uno": 0.1069}
 HONORARIOS_RETENTION = 0.1525
