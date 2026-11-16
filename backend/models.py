@@ -6,16 +6,14 @@ import datetime
 class Transaction(Base):
     __tablename__ = "transactions"
     id = Column(Integer, primary_key=True, index=True)
-    date = Column(DateTime, default=datetime.datetime.utcnow)
-    type = Column(String) # "INGRESO" o "EGRESO"
-    amount = Column(Float, default=0.0) # Monto total
+    date = Column(DateTime, default=datetime.datetime.now) # <-- Corregido aquí
+    type = Column(String)
+    amount = Column(Float, default=0.0)
     description = Column(String)
     category = Column(String, nullable=True)
-    
-    # NUEVOS CAMPOS TRIBUTARIOS
-    document_type = Column(String, default="Boleta") # Factura, Boleta, Honorarios, Exento
-    tax_amount = Column(Float, default=0.0) # Monto del IVA
-    receipt_image = Column(String, nullable=True) # Ruta de la foto adjunta
+    document_type = Column(String, default="Factura")
+    tax_amount = Column(Float, default=0.0)
+    receipt_image = Column(String, nullable=True)
 
 class Employee(Base):
     __tablename__ = "employees"
@@ -36,7 +34,7 @@ class Payroll(Base):
     __tablename__ = "payrolls"
     id = Column(Integer, primary_key=True, index=True)
     employee_id = Column(Integer, ForeignKey("employees.id"))
-    date = Column(DateTime, default=datetime.utcnow)
+    date = Column(DateTime, default=datetime.datetime.now) # <-- Corregido aquí
     period = Column(String)
     gross_salary = Column(Float)
     afp_amount = Column(Float)
