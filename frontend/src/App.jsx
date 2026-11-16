@@ -45,8 +45,6 @@ const isValidRut = (rut) => {
   const calculatedDv = mod === 11 ? '0' : mod === 10 ? 'K' : mod.toString();
   return calculatedDv === dv;
 };
-
-// Función para formatear el monto con puntos de miles
 const formatNumberInput = (value) => {
   const cleanValue = value.replace(/\D/g, '');
   return cleanValue.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
@@ -92,7 +90,6 @@ function App() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    // Limpiamos los puntos antes de parsear
     const cleanAmount = form.amount.replace(/\./g, '');
     if (!cleanAmount || parseFloat(cleanAmount) <= 0) return alert("Monto inválido.")
     
@@ -110,8 +107,13 @@ function App() {
       if (response.ok) { 
         setForm({ ...form, amount: '', description: '', category: '', document_type: 'Factura' }); 
         setReceiptFile(null); loadData() 
+      } else {
+        let errorMsg = "Error al guardar el movimiento.";
+        if (response.status === 413) { errorMsg = "El archivo es demasiado grande."; }
+        else { try { const errData = await response.json(); if (errData.detail) errorMsg = errData.detail; } catch (e) {} }
+        alert(errorMsg);
       }
-    } catch (error) { alert("Error de conexión") }
+    } catch (error) { alert("Error de conexión con el servidor.") }
   }
 
   const handleDeleteTx = async (id) => {
@@ -121,7 +123,6 @@ function App() {
 
   const handleEditTx = (tx) => { alert("Próximamente: Edición de movimientos.") }
 
-  // --- EMPLEADOS ---
   const handleSaveEmployee = async (e) => {
     e.preventDefault()
     if (!isValidRut(empForm.rut)) { setRutError('El RUT ingresado no es válido.'); return; }
@@ -154,7 +155,6 @@ function App() {
     setRutError(''); setIsEmpModalOpen(true)
   }
 
-  // --- LIQUIDACIONES ---
   const openPayrollModal = (emp) => {
     setSelectedEmp(emp)
     setPayrollForm({ period: `${new Date().getFullYear()}-${(new Date().getMonth() + 1).toString().padStart(2, '0')}`, gross_salary: emp.base_salary.toString(), bonuses: '0', overtime: '0' })
@@ -210,7 +210,6 @@ function App() {
   const filterString = `${selectedYear}-${selectedMonth}`
   const monthlyTransactions = transactions.filter(tx => tx.date.startsWith(filterString))
   
-  // CÁLCULOS
   const total_ingresos = monthlyTransactions.filter(t => t.type === 'INGRESO').reduce((acc, t) => acc + t.amount, 0)
   const total_egresos = monthlyTransactions.filter(t => t.type === 'EGRESO').reduce((acc, t) => acc + t.amount, 0)
   const rli = total_ingresos - total_egresos
@@ -288,16 +287,7 @@ function App() {
               </div>
               <div className="form-grid">
                 <div className="form-group"><label>Fecha</label><input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} required /></div>
-                <div className="form-group">
-                  <label>Monto Total ($)</label>
-                  <input 
-                    type="text" 
-                    value={form.amount} 
-                    onChange={e => setForm({...form, amount: formatNumberInput(e.target.value)})} 
-                    placeholder="Ej: 100.000" 
-                    required 
-                  />
-                </div>
+                <div className="form-group"><label>Monto Total ($)</label><input type="text" value={form.amount} onChange={e => setForm({...form, amount: formatNumberInput(e.target.value)})} placeholder="Ej: 100.000" required /></div>
                 <div className="form-group">
                   <label>Tipo de Documento</label>
                   <select value={form.document_type} onChange={e => setForm({...form, document_type: e.target.value})}>
@@ -308,12 +298,8 @@ function App() {
                 </div>
               </div>
               <div className="form-grid">
-                <div className="form-group">
-                  <label>Categoría (Opcional)</label>
-                  <input type="text" placeholder="Ej: Ventas, Sueldos" value={form.category} onChange={e => setForm({...form, category: e.target.value})} />
-                </div>
+                <div className="form-group"><label>Categoría (Opcional)</label><input type="text" placeholder="Ej: Ventas, Sueldos" value={form.category} onChange={e => setForm({...form, category: e.target.value})} /></div>
                 
-                {/* CONDICIÓN PARA MOSTRAR EL INPUT DE ARCHIVO */}
                 {form.document_type !== 'Gasto sin Documento' && (
                   <div className="form-group" style={{ gridColumn: 'span 2' }}>
                     <label>Adjuntar Documento (PDF o Foto)</label>
@@ -335,7 +321,17 @@ function App() {
             <h2>Historial de Movimientos ({currentMonthName} {selectedYear})</h2>
             <div className="table-responsive">
               <table>
-                <thead><tr><th>Fecha</th><th>Tipo</th><th>Doc</th><th>Descripción</th><th>Categoría</th><th style={{ textAlign: 'right' }}>Monto</th><th style={{ textAlign: 'center' }}>Acción</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th style={{ width: '12%' }}>Fecha</th>
+                    <th style={{ width: '10%' }}>Tipo</th>
+                    <th style={{ width: '12%' }}>Doc</th>
+                    <th style={{ width: '26%' }}>Descripción</th>
+                    <th style={{ width: '15%' }}>Categoría</th>
+                    <th style={{ width: '15%', textAlign: 'right' }}>Monto</th>
+                    <th style={{ width: '10%', textAlign: 'center' }}>Acción</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {monthlyTransactions.length === 0 && <tr><td colSpan="7" style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>No hay movimientos en este periodo.</td></tr>}
                   {monthlyTransactions.map(tx => (
@@ -345,7 +341,7 @@ function App() {
                       <td data-label="Doc" style={{ color: '#94a3b8', fontSize: '0.75rem' }}>{tx.document_type || 'Factura'}</td>
                       <td data-label="Descripción">{tx.description}</td>
                       <td data-label="Categoría" style={{ color: '#94a3b8' }}>{tx.category || '-'}</td>
-                      <td data-label="Monto" style={{ fontWeight: 'bold', color: tx.type === 'INGRESO' ? '#4ade80' : '#f87171' }}>{tx.type === 'INGRESO' ? '+' : '-'} {formatMoney(tx.amount)}</td>
+                      <td data-label="Monto" style={{ fontWeight: 'bold', color: tx.type === 'INGRESO' ? '#4ade80' : '#f87171', textAlign: 'right' }}>{tx.type === 'INGRESO' ? '+' : '-'} {formatMoney(tx.amount)}</td>
                       <td data-label="Acción">
                         <div className="actions-wrapper">
                           {tx.receipt_image && (
@@ -364,7 +360,6 @@ function App() {
         </>
       )}
 
-      {/* --- RESTO DE LA VISTA DE REMUNERACIONES (SIN CAMBIOS) --- */}
       {activeTab === 'remuneraciones' && (
         <>
           <div className="card">
@@ -379,7 +374,12 @@ function App() {
               <table>
                 <thead>
                   <tr>
-                    <th>RUT</th><th>Nombre</th><th>Cargo</th><th>Sueldo Base</th><th>AFP / Salud</th><th style={{ textAlign: 'center' }}>Acciones</th>
+                    <th style={{ width: '15%' }}>RUT</th>
+                    <th style={{ width: '25%' }}>Nombre</th>
+                    <th style={{ width: '20%' }}>Cargo</th>
+                    <th style={{ width: '15%' }}>Sueldo Base</th>
+                    <th style={{ width: '15%' }}>AFP / Salud</th>
+                    <th style={{ width: '10%', textAlign: 'center' }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -411,8 +411,14 @@ function App() {
               <table className="payroll-table">
                 <thead>
                   <tr>
-                    <th>Periodo</th><th>Trabajador</th><th>Sueldo Bruto</th><th>AFP</th><th>Salud</th><th>Cesantía</th>
-                    <th style={{ textAlign: 'center' }}>Sueldo Líquido</th><th style={{ textAlign: 'center' }}>Acciones</th>
+                    <th style={{ width: '10%' }}>Periodo</th>
+                    <th style={{ width: '20%' }}>Trabajador</th>
+                    <th style={{ width: '15%' }}>Sueldo Bruto</th>
+                    <th style={{ width: '10%' }}>AFP</th>
+                    <th style={{ width: '10%' }}>Salud</th>
+                    <th style={{ width: '10%' }}>Cesantía</th>
+                    <th style={{ width: '15%', textAlign: 'center' }}>Sueldo Líquido</th>
+                    <th style={{ width: '10%', textAlign: 'center' }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -425,7 +431,7 @@ function App() {
                       <td data-label="AFP" className="deduction">-{formatMoney(p.afp_amount)}</td>
                       <td data-label="Salud" className="deduction">-{formatMoney(p.health_amount)}</td>
                       <td data-label="Cesantía" className="deduction">-{formatMoney(p.unemployment_amount)}</td>
-                      <td data-label="Sueldo Líquido"><span className="net-salary-box">{formatMoney(p.net_salary)}</span></td>
+                      <td data-label="Sueldo Líquido" style={{ textAlign: 'center' }}><span className="net-salary-box">{formatMoney(p.net_salary)}</span></td>
                       <td data-label="Acciones">
                         <div className="actions-wrapper">
                           <button className="btn-action pdf" title="Descargar PDF" onClick={() => downloadPDF(p)}><IconFile /> PDF</button>
