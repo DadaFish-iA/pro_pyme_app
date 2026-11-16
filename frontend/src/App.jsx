@@ -326,8 +326,8 @@ function App() {
                     <th style={{ width: '12%' }}>Fecha</th>
                     <th style={{ width: '10%' }}>Tipo</th>
                     <th style={{ width: '12%' }}>Doc</th>
-                    <th style={{ width: '26%' }}>Descripción</th>
-                    <th style={{ width: '15%' }}>Categoría</th>
+                    <th style={{ width: '28%' }}>Descripción</th>
+                    <th style={{ width: '13%' }}>Categoría</th>
                     <th style={{ width: '15%', textAlign: 'right' }}>Monto</th>
                     <th style={{ width: '10%', textAlign: 'center' }}>Acción</th>
                   </tr>
