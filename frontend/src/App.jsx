@@ -374,12 +374,12 @@ function App() {
               <table>
                 <thead>
                   <tr>
-                    <th style={{ width: '15%' }}>RUT</th>
-                    <th style={{ width: '25%' }}>Nombre</th>
-                    <th style={{ width: '20%' }}>Cargo</th>
+                    <th style={{ width: '12%' }}>RUT</th>
+                    <th style={{ width: '20%' }}>Nombre</th>
+                    <th style={{ width: '15%' }}>Cargo</th>
                     <th style={{ width: '15%' }}>Sueldo Base</th>
                     <th style={{ width: '15%' }}>AFP / Salud</th>
-                    <th style={{ width: '10%', textAlign: 'center' }}>Acciones</th>
+                    <th style={{ width: '23%', textAlign: 'center' }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -412,13 +412,13 @@ function App() {
                 <thead>
                   <tr>
                     <th style={{ width: '10%' }}>Periodo</th>
-                    <th style={{ width: '20%' }}>Trabajador</th>
-                    <th style={{ width: '15%' }}>Sueldo Bruto</th>
+                    <th style={{ width: '15%' }}>Trabajador</th>
+                    <th style={{ width: '12%' }}>Sueldo Bruto</th>
                     <th style={{ width: '10%' }}>AFP</th>
                     <th style={{ width: '10%' }}>Salud</th>
                     <th style={{ width: '10%' }}>Cesantía</th>
-                    <th style={{ width: '15%', textAlign: 'center' }}>Sueldo Líquido</th>
-                    <th style={{ width: '10%', textAlign: 'center' }}>Acciones</th>
+                    <th style={{ width: '13%', textAlign: 'center' }}>Sueldo Líquido</th>
+                    <th style={{ width: '20%', textAlign: 'center' }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
