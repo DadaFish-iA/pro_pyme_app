@@ -59,7 +59,7 @@ export default function App() {
   const delPeriodo = transactions.filter((t) => (t.date || '').startsWith(periodo))
 
   return (
-    <div className="dashboard-container">
+    <div className={`dashboard-container tema-${activeTab}`}>
       <div className="header">
         <h1><span className="text-gradient">Pro Pyme</span></h1>
         <p>Régimen Art. 14 Letra D N°3 · Herramientas de gestión</p>
@@ -67,7 +67,7 @@ export default function App() {
 
       <nav className="main-tabs">
         {TABS.map(({ id, label, Icon }) => (
-          <button key={id} className={`btn-main-tab ${activeTab === id ? 'active' : ''}`}
+          <button key={id} className={`btn-main-tab tab-${id} ${activeTab === id ? 'active' : ''}`}
             onClick={() => setActiveTab(id)}>
             <Icon /> {label}
           </button>

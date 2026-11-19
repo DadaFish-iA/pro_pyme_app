@@ -139,7 +139,7 @@ export default function MovimientoForm({ tipo, editing, onSaved, onCancelEdit })
         </div>
 
         <button type="submit" className="btn-submit" disabled={guardando}>
-          {guardando ? 'Guardando...' : (editing ? 'Guardar cambios' : 'Guardar movimiento')}
+          {guardando ? 'Guardando...' : (editing ? 'Guardar cambios' : (esIngreso ? 'Guardar ingreso' : 'Guardar egreso'))}
         </button>
       </form>
     </div>

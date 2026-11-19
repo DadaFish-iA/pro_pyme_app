@@ -16,7 +16,39 @@ body {
   overflow-x: hidden;
 }
 
-.dashboard-container { max-width: 1050px; width: 100%; margin: 30px auto; padding: 20px; }
+.dashboard-container {
+  max-width: 1050px; width: 100%; margin: 30px auto; padding: 20px;
+
+  /* Acento por defecto (Flujo de Caja y Remuneraciones) */
+  --acento: #9d4edd;
+  --acento-2: #c77dff;
+  --acento-texto: #48cae4;
+  --acento-borde: rgba(157, 78, 221, 0.3);
+  --acento-brillo: rgba(157, 78, 221, 0.28);
+  --acento-suave: rgba(157, 78, 221, 0.07);
+  --acento-suave-2: rgba(157, 78, 221, 0.16);
+}
+
+/* El acento cambia según la pestaña: verde = dinero que entra, rojo = dinero que sale.
+   Todo lo que está dentro (marcos, botones, focos, adjuntos) hereda el tono. */
+.dashboard-container.tema-ingresos {
+  --acento: #166534;
+  --acento-2: #16a34a;
+  --acento-texto: #4ade80;
+  --acento-borde: rgba(74, 222, 128, 0.3);
+  --acento-brillo: rgba(74, 222, 128, 0.2);
+  --acento-suave: rgba(74, 222, 128, 0.07);
+  --acento-suave-2: rgba(74, 222, 128, 0.16);
+}
+.dashboard-container.tema-egresos {
+  --acento: #991b1b;
+  --acento-2: #dc2626;
+  --acento-texto: #f87171;
+  --acento-borde: rgba(248, 113, 113, 0.3);
+  --acento-brillo: rgba(248, 113, 113, 0.2);
+  --acento-suave: rgba(248, 113, 113, 0.07);
+  --acento-suave-2: rgba(248, 113, 113, 0.16);
+}
 
 /* ---------- Encabezado ---------- */
 .header { text-align: center; margin-bottom: 20px; }
@@ -43,6 +75,17 @@ body {
 .btn-main-tab:hover { background: rgba(255, 255, 255, 0.05); color: #e2e8f0; }
 .btn-main-tab.active {
   color: #48cae4; background: rgba(72, 202, 228, 0.1); border-bottom-color: #48cae4;
+}
+/* Cada pestaña se identifica por color incluso sin estar activa */
+.btn-main-tab.tab-ingresos { color: rgba(74, 222, 128, 0.62); }
+.btn-main-tab.tab-egresos { color: rgba(248, 113, 113, 0.62); }
+.btn-main-tab.tab-ingresos:hover { background: rgba(74, 222, 128, 0.09); color: #4ade80; }
+.btn-main-tab.tab-egresos:hover { background: rgba(248, 113, 113, 0.09); color: #f87171; }
+.btn-main-tab.tab-ingresos.active {
+  color: #4ade80; background: rgba(74, 222, 128, 0.12); border-bottom-color: #4ade80;
+}
+.btn-main-tab.tab-egresos.active {
+  color: #f87171; background: rgba(248, 113, 113, 0.12); border-bottom-color: #f87171;
 }
 
 /* ---------- Filtro de periodo ---------- */
@@ -96,7 +139,7 @@ body {
 .card {
   background: rgba(15, 20, 30, 0.6); backdrop-filter: blur(12px); padding: 25px;
   border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.04);
-  border-top: 1px solid rgba(157, 78, 221, 0.3); margin-bottom: 25px;
+  border-top: 1px solid var(--acento-borde); margin-bottom: 25px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 .card h2 {
@@ -133,7 +176,7 @@ body {
   font-size: 0.85rem; outline: none; transition: border 0.2s; font-weight: 300;
   appearance: none; -webkit-appearance: none;
 }
-.form-group input:focus, .form-group select:focus { border-color: #48cae4; }
+.form-group input:focus, .form-group select:focus { border-color: var(--acento-texto); }
 .form-group input.error { border-color: #f87171; }
 .field-error { color: #f87171; font-size: 0.7rem; margin-top: 4px; }
 
@@ -141,12 +184,12 @@ body {
 .file-upload-wrapper input[type="file"] { position: absolute; width: 0; height: 0; opacity: 0; overflow: hidden; z-index: -1; }
 .file-upload-label {
   display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 100%;
-  padding: 0 10px; background: rgba(72, 202, 228, 0.05); border: 1px dashed rgba(72, 202, 228, 0.5);
-  border-radius: 6px; color: #48cae4; font-size: 0.8rem; cursor: pointer; transition: all 0.2s;
+  padding: 0 10px; background: var(--acento-suave); border: 1px dashed var(--acento-borde);
+  border-radius: 6px; color: var(--acento-texto); font-size: 0.8rem; cursor: pointer; transition: all 0.2s;
   overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
 }
 .file-upload-label svg { width: 16px; height: 16px; flex-shrink: 0; }
-.file-upload-label:hover { background: rgba(72, 202, 228, 0.15); }
+.file-upload-label:hover { background: var(--acento-suave-2); }
 .file-upload-label.has-file { border: 1px solid #4ade80; color: #4ade80; background: rgba(74, 222, 128, 0.1); }
 
 .iva-preview {
@@ -158,25 +201,25 @@ body {
 
 /* ---------- Botones ---------- */
 .btn-submit {
-  width: 100%; height: 52px; background: linear-gradient(90deg, #9d4edd, #c77dff);
-  color: #fff; border: 1px solid rgba(157, 78, 221, 0.5); border-radius: 8px;
+  width: 100%; height: 52px; background: linear-gradient(90deg, var(--acento), var(--acento-2));
+  color: #fff; border: 1px solid var(--acento-borde); border-radius: 8px;
   font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s; margin-top: 10px;
-  box-shadow: 0 4px 15px rgba(157, 78, 221, 0.3);
+  box-shadow: 0 4px 15px var(--acento-brillo);
   display: flex; align-items: center; justify-content: center; gap: 8px;
 }
-.btn-submit:hover:not(:disabled) { background: linear-gradient(90deg, #7b2cbf, #9d4edd); transform: translateY(-1px); }
+.btn-submit:hover:not(:disabled) { filter: brightness(0.9); transform: translateY(-1px); }
 .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
 .btn-submit.btn-inline { width: auto; height: 40px; padding: 0 18px; font-size: 0.85rem; margin-top: 0; }
 .btn-submit svg { width: 16px; height: 16px; }
 
 .btn-small-add {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 0 15px; height: 36px; background: linear-gradient(90deg, #9d4edd, #c77dff);
-  color: #fff; border: 1px solid rgba(157, 78, 221, 0.5); border-radius: 6px;
+  padding: 0 15px; height: 36px; background: linear-gradient(90deg, var(--acento), var(--acento-2));
+  color: #fff; border: 1px solid var(--acento-borde); border-radius: 6px;
   font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
-  box-shadow: 0 4px 15px rgba(157, 78, 221, 0.3);
+  box-shadow: 0 4px 15px var(--acento-brillo);
 }
-.btn-small-add:hover { background: linear-gradient(90deg, #7b2cbf, #9d4edd); transform: translateY(-1px); }
+.btn-small-add:hover { filter: brightness(0.9); transform: translateY(-1px); }
 .btn-small-add svg { width: 14px; height: 14px; }
 
 .btn-secondary {
